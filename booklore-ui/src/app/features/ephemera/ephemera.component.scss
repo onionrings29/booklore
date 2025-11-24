@@ -1,0 +1,32 @@
+// Ephemera Component Styles
+
+:host {
+  display: block;
+  height: 100%;
+}
+
+// Ensure iframe renders properly
+iframe {
+  background-color: var(--card-background);
+}
+
+// Add subtle animation to loading spinner
+p-progressSpinner {
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+// Responsive adjustments
+@media (max-width: 768px) {
+  .overflow-x-auto {
+    overflow-x: visible;
+  }
+}
