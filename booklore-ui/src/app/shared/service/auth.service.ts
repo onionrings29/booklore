@@ -61,6 +61,11 @@ export class AuthService {
   saveInternalTokens(accessToken: string, refreshToken: string): void {
     localStorage.setItem('accessToken_Internal', accessToken);
     localStorage.setItem('refreshToken_Internal', refreshToken);
+
+    // Also store in cookie for iframe/navigation requests (e.g., ephemera)
+    // Set SameSite=Strict for security, and use the same domain
+    document.cookie = `accessToken=${accessToken}; path=/; SameSite=Strict; Secure`;
+
     this.tokenSubject.next(accessToken);
   }
 
@@ -92,6 +97,10 @@ export class AuthService {
     this.oAuthStorage.removeItem("access_token");
     this.oAuthStorage.removeItem("refresh_token");
     this.oAuthStorage.removeItem("id_token");
+
+    // Clear the accessToken cookie
+    document.cookie = 'accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Strict; Secure';
+
     this.tokenSubject.next(null);
     this.getRxStompService().deactivate();
     this.router.navigate(['/login']);
