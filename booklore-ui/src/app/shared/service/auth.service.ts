@@ -24,6 +24,29 @@ export class AuthService {
   public tokenSubject = new BehaviorSubject<string | null>(this.getOidcAccessToken() || this.getInternalAccessToken());
   public token$ = this.tokenSubject.asObservable();
 
+  constructor() {
+    // Ensure cookie is set for existing sessions (retroactive fix)
+    this.ensureTokenCookieExists();
+  }
+
+  /**
+   * Ensures the accessToken cookie exists if there's a valid token in localStorage.
+   * This is needed for iframe/navigation requests that don't go through HTTP interceptors.
+   */
+  private ensureTokenCookieExists(): void {
+    const token = this.getInternalAccessToken() || this.getOidcAccessToken();
+    if (token && !this.hasTokenCookie()) {
+      // Set the cookie for existing sessions
+      document.cookie = `accessToken=${token}; path=/; SameSite=Strict; Secure`;
+    }
+  }
+
+  /**
+   * Check if the accessToken cookie exists
+   */
+  private hasTokenCookie(): boolean {
+    return document.cookie.split('; ').some(cookie => cookie.startsWith('accessToken='));
+  }
 
   internalLogin(credentials: { username: string; password: string }): Observable<{ accessToken: string; refreshToken: string, isDefaultPassword: string }> {
     return this.http.post<{ accessToken: string; refreshToken: string, isDefaultPassword: string }>(`${this.apiUrl}/login`, credentials).pipe(
