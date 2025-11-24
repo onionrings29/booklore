@@ -17,7 +17,7 @@ app:
     base-url: ${EPHEMERA_BASE_URL:http://10.129.20.50:8286}
     connect-timeout-ms: ${EPHEMERA_CONNECT_TIMEOUT_MS:2000}
     read-timeout-ms: ${EPHEMERA_READ_TIMEOUT_MS:30000}
-    allowed-paths: ${EPHEMERA_ALLOWED_PATHS:/api/**,/status/**,/health}
+    allowed-paths: ${EPHEMERA_ALLOWED_PATHS:/**}
     allowed-methods: ${EPHEMERA_ALLOWED_METHODS:GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS}
 
 server:
