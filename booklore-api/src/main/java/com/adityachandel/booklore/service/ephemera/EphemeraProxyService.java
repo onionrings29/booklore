@@ -67,7 +67,15 @@ public class EphemeraProxyService {
         try {
             HttpResponse<byte[]> response = httpClient.send(outboundRequest, HttpResponse.BodyHandlers.ofByteArray());
             HttpHeaders headers = extractResponseHeaders(response);
-            return ResponseEntity.status(response.statusCode()).headers(headers).body(response.body());
+            byte[] responseBody = response.body();
+
+            // Inject base tag for HTML responses to fix relative URLs
+            String contentType = response.headers().firstValue(HttpHeaders.CONTENT_TYPE).orElse("");
+            if (contentType.contains("text/html") && responseBody != null && responseBody.length > 0) {
+                responseBody = injectBaseTag(responseBody);
+            }
+
+            return ResponseEntity.status(response.statusCode()).headers(headers).body(responseBody);
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
             log.error("Ephemera proxy interrupted", ie);
@@ -76,6 +84,24 @@ public class EphemeraProxyService {
             log.error("Failed to proxy Ephemera request", e);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Failed to reach Ephemera service", e);
         }
+    }
+
+    /**
+     * Injects a base tag into HTML to fix relative URLs when ephemera is served via proxy
+     */
+    private byte[] injectBaseTag(byte[] htmlBytes) {
+        String html = new String(htmlBytes, StandardCharsets.UTF_8);
+
+        // Only inject if base tag doesn't already exist
+        if (html.contains("<base ")) {
+            return htmlBytes;
+        }
+
+        // Inject base tag after <head> tag
+        String baseTag = "<base href=\"/api/v1/ephemera/\">";
+        String modifiedHtml = html.replaceFirst("(<head[^>]*>)", "$1" + baseTag);
+
+        return modifiedHtml.getBytes(StandardCharsets.UTF_8);
     }
 
     private void validateRequest(HttpServletRequest request) {
