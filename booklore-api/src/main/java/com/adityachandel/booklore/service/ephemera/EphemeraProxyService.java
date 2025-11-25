@@ -96,6 +96,19 @@ public class EphemeraProxyService {
         // Paths starting with / are absolute from domain root and ignore base tag
         html = html.replaceAll("(src|href)=\"/([^/])", "$1=\"./$2");
 
+        // Rewrite API calls to use relative paths that go through the proxy
+        // This handles cases where Ephemera makes direct API calls to absolute URLs
+        html = html.replaceAll("\"/api/", "\"./api/");
+        html = html.replaceAll("'/api/", "'./api/");
+        
+        // Also rewrite any JavaScript fetch or XMLHttpRequest calls
+        html = html.replaceAll("fetch\\(\"/api/", "fetch(\"./api/");
+        html = html.replaceAll("fetch\\(\\s*'/api/", "fetch('./api/");
+        html = html.replaceAll("\\.get\\(\"/api/", ".get(\"./api/");
+        html = html.replaceAll("\\.post\\(\"/api/", ".post(\"./api/");
+        html = html.replaceAll("\\.put\\(\"/api/", ".put(\"./api/");
+        html = html.replaceAll("\\.delete\\(\"/api/", ".delete(\"./api/");
+
         // Only inject base tag if it doesn't already exist
         if (html.toLowerCase(Locale.ROOT).contains("<base ")) {
             log.debug("Base tag already exists, skipping injection");
