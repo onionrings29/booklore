@@ -129,22 +129,32 @@ public class EphemeraApiInterceptorFilter extends OncePerRequestFilter {
             }
         }
 
-        // Don't intercept if referer is null
+        // Don't intercept if referer is null (external requests)
         if (referer == null || referer.isEmpty()) {
+            log.trace("Skipping request with no referer: {}", requestUri);
             return false;
         }
 
-        // CRITICAL: Only intercept if the referer is specifically from the Ephemera iframe
-        // The referer must contain /api/v1/ephemera/ which is the unique ephemera proxy path
-        // This ensures we ONLY intercept requests originating from ephemera's iframe,
-        // not from any other booklore pages
-        boolean isFromEphemera = referer.contains("/api/v1/ephemera/");
+        // If we get here, it's an /api/* request that's NOT in the Booklore whitelist
+        // and HAS a referer (meaning it's from our domain)
+        // This means it's likely an ephemera API call
 
-        if (isFromEphemera) {
-            log.info("Intercepting ephemera API call: {} (referer: {})", requestUri, referer);
+        // Additional check: Verify referer is from our domain to prevent external abuse
+        // The referer should be from library.saulutions.ca or contain /api/v1/ephemera/
+        boolean isFromOurDomain = referer.contains("library.saulutions.ca") ||
+                                   referer.contains("://localhost") ||
+                                   referer.startsWith("http://10.") ||
+                                   referer.startsWith("http://localhost");
+
+        if (!isFromOurDomain) {
+            log.warn("Rejecting API request with external referer: {} from {}", requestUri, referer);
+            return false;
         }
 
-        return isFromEphemera;
+        // At this point, it's an unknown /api/* endpoint from our domain
+        // This is almost certainly an ephemera API call
+        log.info("Intercepting unknown API call (likely ephemera): {} (referer: {})", requestUri, referer);
+        return true;
     }
 
     /**
