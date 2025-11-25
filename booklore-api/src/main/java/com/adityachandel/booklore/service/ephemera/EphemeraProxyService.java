@@ -95,35 +95,54 @@ public class EphemeraProxyService {
      */
     private byte[] rewriteJavaScript(byte[] jsBytes) {
         String js = new String(jsBytes, StandardCharsets.UTF_8);
-        boolean modified = false;
-
-        // Rewrite baseUrl configuration from absolute to relative path
-        // Handles multiple patterns including minified code
         String original = js;
+        int replacements = 0;
 
-        // Pattern 1: baseUrl: "/api" (with or without spaces)
-        js = js.replaceAll("baseUrl\\s*:\\s*\"/api\"", "baseUrl:\"./api\"");
+        // Pattern 1: baseUrl: "/api" (with or without spaces) - MOST COMMON
+        String pattern1Before = "baseUrl\\s*:\\s*\"/api\"";
+        js = js.replaceAll(pattern1Before, "baseUrl:\"./api\"");
+        if (!js.equals(original)) {
+            replacements++;
+            log.info("Matched pattern: baseUrl: \"/api\"");
+        }
+
+        // Pattern 2: baseUrl: '/api' (single quotes)
         js = js.replaceAll("baseUrl\\s*:\\s*'/api'", "baseUrl:'./api'");
 
-        // Pattern 2: baseUrl:"/api" (minified, no spaces)
-        js = js.replaceAll("baseUrl:\"/api\"", "baseUrl:\"./api\"");
-        js = js.replaceAll("baseUrl:'/api'", "baseUrl:'./api'");
-
-        // Pattern 3: {baseUrl:"/api"} (object literal)
+        // Pattern 3: {baseUrl:"/api"} (object literal, minified)
+        String beforeObj = js;
         js = js.replaceAll("\\{baseUrl:\"/api\"", "{baseUrl:\"./api\"");
-        js = js.replaceAll("\\{baseUrl:'/api'", "{baseUrl:'./api'");
+        if (!js.equals(beforeObj)) {
+            replacements++;
+            log.info("Matched pattern: {{baseUrl:\"/api\"");
+        }
 
-        // Pattern 4: "baseUrl":"/api" (JSON-style)
+        // Pattern 4: "baseUrl":"/api" (JSON-style with quotes on key)
         js = js.replaceAll("\"baseUrl\"\\s*:\\s*\"/api\"", "\"baseUrl\":\"./api\"");
-        js = js.replaceAll("'baseUrl'\\s*:\\s*'/api'", "'baseUrl':'./api'");
+
+        // Pattern 5: Catch variations with , or } after
+        js = js.replaceAll("baseUrl:\"/api\",", "baseUrl:\"./api\",");
+        js = js.replaceAll("baseUrl:\"/api\"}", "baseUrl:\"./api\"}");
+        js = js.replaceAll("baseUrl:'/api',", "baseUrl:'./api',");
+        js = js.replaceAll("baseUrl:'/api'}", "baseUrl:'./api'}");
+
+        // CRITICAL: Also rewrite the usage of baseUrl in the client
+        // The apiFetch function concatenates baseUrl with the path
+        // Pattern: clientConfig.baseUrl + path or baseUrl + path
+        js = js.replaceAll("clientConfig\\.baseUrl\\}\\$\\{", "clientConfig.baseUrl}${");
 
         // Rewrite EventSource and WebSocket paths to be relative
+        String beforeESE = js;
         js = js.replaceAll("new EventSource\\(\\s*\"/api/", "new EventSource(\"./api/");
+        if (!js.equals(beforeESE)) {
+            replacements++;
+            log.info("Matched pattern: new EventSource(\"/api/");
+        }
         js = js.replaceAll("new EventSource\\(\\s*'/api/", "new EventSource('./api/");
         js = js.replaceAll("new WebSocket\\(\\s*\"/api/", "new WebSocket(\"./api/");
         js = js.replaceAll("new WebSocket\\(\\s*'/api/", "new WebSocket('./api/");
 
-        // Rewrite fetch, XMLHttpRequest, and axios calls with absolute /api/ paths
+        // Rewrite fetch calls with absolute /api/ paths
         js = js.replaceAll("fetch\\(\\s*\"/api/", "fetch(\"./api/");
         js = js.replaceAll("fetch\\(\\s*'/api/", "fetch('./api/");
 
@@ -132,15 +151,22 @@ public class EphemeraProxyService {
         js = js.replaceAll("\\+\\s*'/api/", "+'./api/");
         js = js.replaceAll("`/api/", "`./api/");
 
-        // Rewrite any standalone "/api/" or '/api/' strings that might be URLs
-        // But be careful not to rewrite things that aren't URLs
-        js = js.replaceAll("([\"'])(/api/[^\"']*)(\\1)", "$1.$2$3");
+        // AGGRESSIVE: Rewrite ALL standalone "/api" strings (not followed by /)
+        // This catches the baseUrl: "/api" configuration regardless of pattern
+        js = js.replaceAll(":\"/api\"", ":\"./api\"");
+        js = js.replaceAll(":'/api'", ":'./api'");
 
-        modified = !js.equals(original);
+        boolean modified = !js.equals(original);
         if (modified) {
-            log.info("Rewrote JavaScript API paths to relative paths (matched patterns in bundle)");
+            log.warn("Rewrote JavaScript API paths to relative paths ({} specific patterns matched)", replacements);
+            // Log a snippet to verify rewriting
+            if (js.contains("baseUrl:\"./api\"") || js.contains("baseUrl:'./api'")) {
+                log.warn("SUCCESS: Verified baseUrl was rewritten to use relative path");
+            } else {
+                log.error("WARNING: JavaScript was modified but baseUrl pattern not found in output!");
+            }
         } else {
-            log.debug("No JavaScript API path patterns found to rewrite");
+            log.warn("WARNING: No JavaScript patterns matched for rewriting - this file may not be the bundle we're looking for");
         }
 
         return js.getBytes(StandardCharsets.UTF_8);
@@ -204,11 +230,14 @@ public class EphemeraProxyService {
             return html.getBytes(StandardCharsets.UTF_8);
         }
 
-        // Inject base tag immediately after <head>
+        // Inject base tag AND meta tag for API path configuration immediately after <head>
+        // The meta tag is read by ephemera's getApiBasePath() function to configure the API client
         String baseTag = "<base href=\"/api/v1/ephemera/\">";
-        String modifiedHtml = html.substring(0, closeIndex + 1) + baseTag + html.substring(closeIndex + 1);
+        String metaTag = "<meta name=\"api-base-path\" content=\"./api\">";
+        String injectedTags = baseTag + metaTag;
+        String modifiedHtml = html.substring(0, closeIndex + 1) + injectedTags + html.substring(closeIndex + 1);
 
-        log.debug("Successfully injected base tag and rewrote asset paths");
+        log.info("Successfully injected base tag and API base path meta tag");
         return modifiedHtml.getBytes(StandardCharsets.UTF_8);
     }
 
