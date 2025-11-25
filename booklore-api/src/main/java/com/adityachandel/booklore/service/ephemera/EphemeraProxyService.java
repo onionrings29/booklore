@@ -69,10 +69,14 @@ public class EphemeraProxyService {
             HttpHeaders headers = extractResponseHeaders(response);
             byte[] responseBody = response.body();
 
-            // Inject base tag for HTML responses to fix relative URLs
+            // Rewrite URLs in responses to work correctly when ephemera is served via proxy
             String contentType = response.headers().firstValue(HttpHeaders.CONTENT_TYPE).orElse("");
-            if (contentType.contains("text/html") && responseBody != null && responseBody.length > 0) {
-                responseBody = injectBaseTag(responseBody);
+            if (responseBody != null && responseBody.length > 0) {
+                if (contentType.contains("text/html")) {
+                    responseBody = injectBaseTag(responseBody);
+                } else if (contentType.contains("javascript")) {
+                    responseBody = rewriteJavaScript(responseBody);
+                }
             }
 
             return ResponseEntity.status(response.statusCode()).headers(headers).body(responseBody);
@@ -84,6 +88,31 @@ public class EphemeraProxyService {
             log.error("Failed to proxy Ephemera request", e);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Failed to reach Ephemera service", e);
         }
+    }
+
+    /**
+     * Rewrites JavaScript to use relative paths for API calls when served via proxy
+     */
+    private byte[] rewriteJavaScript(byte[] jsBytes) {
+        String js = new String(jsBytes, StandardCharsets.UTF_8);
+
+        // Rewrite baseUrl configuration from absolute to relative path
+        // Handles patterns like: baseUrl: "/api" or baseUrl:"/api" or baseUrl : "/api"
+        js = js.replaceAll("baseUrl\\s*:\\s*\"/api\"", "baseUrl: \"./api\"");
+        js = js.replaceAll("baseUrl\\s*:\\s*'/api'", "baseUrl: './api'");
+
+        // Rewrite EventSource and WebSocket paths to be relative
+        // EventSource is used for SSE (Server-Sent Events)
+        js = js.replaceAll("new EventSource\\(\\s*\"/api/", "new EventSource(\"./api/");
+        js = js.replaceAll("new EventSource\\(\\s*'/api/", "new EventSource('./api/");
+        js = js.replaceAll("new WebSocket\\(\\s*\"/api/", "new WebSocket(\"./api/");
+        js = js.replaceAll("new WebSocket\\(\\s*'/api/", "new WebSocket('./api/");
+
+        // Rewrite any other absolute API paths in JavaScript
+        js = js.replaceAll("([\"'])(/api/[^\"']*)(\\1)", "$1.$2$3");
+
+        log.debug("Rewrote JavaScript API paths to relative paths");
+        return js.getBytes(StandardCharsets.UTF_8);
     }
 
     /**
