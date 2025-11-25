@@ -93,14 +93,32 @@ public class EphemeraProxyService {
         String html = new String(htmlBytes, StandardCharsets.UTF_8);
 
         // Only inject if base tag doesn't already exist
-        if (html.contains("<base ")) {
+        if (html.toLowerCase(Locale.ROOT).contains("<base ")) {
+            log.debug("Base tag already exists, skipping injection");
             return htmlBytes;
         }
 
-        // Inject base tag after <head> tag
-        String baseTag = "<base href=\"/api/v1/ephemera/\">";
-        String modifiedHtml = html.replaceFirst("(<head[^>]*>)", "$1" + baseTag);
+        // Find the <head> tag (case-insensitive)
+        String lowerHtml = html.toLowerCase(Locale.ROOT);
+        int headIndex = lowerHtml.indexOf("<head");
 
+        if (headIndex == -1) {
+            log.warn("No <head> tag found in HTML, cannot inject base tag");
+            return htmlBytes;
+        }
+
+        // Find the closing > of the head tag
+        int closeIndex = html.indexOf(">", headIndex);
+        if (closeIndex == -1) {
+            log.warn("Malformed <head> tag, cannot inject base tag");
+            return htmlBytes;
+        }
+
+        // Inject base tag immediately after <head>
+        String baseTag = "<base href=\"/api/v1/ephemera/\">";
+        String modifiedHtml = html.substring(0, closeIndex + 1) + baseTag + html.substring(closeIndex + 1);
+
+        log.debug("Successfully injected base tag into HTML");
         return modifiedHtml.getBytes(StandardCharsets.UTF_8);
     }
 
