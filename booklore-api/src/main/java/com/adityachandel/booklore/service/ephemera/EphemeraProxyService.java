@@ -87,20 +87,68 @@ public class EphemeraProxyService {
     }
 
     /**
-     * Injects a base tag into HTML to fix relative URLs when ephemera is served via proxy
+     * Injects a base tag and rewrites absolute paths to work correctly when ephemera is served via proxy
      */
     private byte[] injectBaseTag(byte[] htmlBytes) {
         String html = new String(htmlBytes, StandardCharsets.UTF_8);
 
-        // Only inject if base tag doesn't already exist
-        if (html.contains("<base ")) {
-            return htmlBytes;
+        // Rewrite absolute paths to relative paths so base tag works correctly
+        // Paths starting with / are absolute from domain root and ignore base tag
+        html = html.replaceAll("(src|href)=\"/([^/])", "$1=\"./$2");
+
+        // Rewrite API calls to use relative paths that go through the proxy
+        // This handles cases where Ephemera makes direct API calls to absolute URLs
+        html = html.replaceAll("\"/api/", "\"./api/");
+        html = html.replaceAll("'/api/", "'./api/");
+
+        // Also rewrite any JavaScript fetch or XMLHttpRequest calls
+        html = html.replaceAll("fetch\\(\"/api/", "fetch(\"./api/");
+        html = html.replaceAll("fetch\\(\\s*'/api/", "fetch('./api/");
+        html = html.replaceAll("\\.get\\(\"/api/", ".get(\"./api/");
+        html = html.replaceAll("\\.post\\(\"/api/", ".post(\"./api/");
+        html = html.replaceAll("\\.put\\(\"/api/", ".put(\"./api/");
+        html = html.replaceAll("\\.delete\\(\"/api/", ".delete(\"./api/");
+        html = html.replaceAll("\\.patch\\(\"/api/", ".patch(\"./api/");
+        html = html.replaceAll("\\.head\\(\"/api/", ".head(\"./api/");
+        html = html.replaceAll("\\.options\\(\"/api/", ".options(\"./api/");
+
+        // Rewrite XMLHttpRequest open calls
+        html = html.replaceAll("\\.open\\(\\s*[\"'](GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)[\"']\\s*,\\s*[\"']/api/", ".open(\"$1\", \"./api/");
+
+        // Rewrite any absolute URLs that might be constructed in JavaScript
+        html = html.replaceAll("window\\.location\\.origin\\s*\\+\\s*[\"']/api/", "\"./api/");
+        html = html.replaceAll("location\\.origin\\s*\\+\\s*[\"']/api/", "\"./api/");
+
+        // Rewrite any hardcoded absolute URLs to library.saulutions.ca
+        html = html.replaceAll("https?://library\\.saulutions\\.ca/api/", "./api/");
+
+        // Only inject base tag if it doesn't already exist
+        if (html.toLowerCase(Locale.ROOT).contains("<base ")) {
+            log.debug("Base tag already exists, skipping injection");
+            return html.getBytes(StandardCharsets.UTF_8);
         }
 
-        // Inject base tag after <head> tag
-        String baseTag = "<base href=\"/api/v1/ephemera/\">";
-        String modifiedHtml = html.replaceFirst("(<head[^>]*>)", "$1" + baseTag);
+        // Find the <head> tag (case-insensitive)
+        String lowerHtml = html.toLowerCase(Locale.ROOT);
+        int headIndex = lowerHtml.indexOf("<head");
 
+        if (headIndex == -1) {
+            log.warn("No <head> tag found in HTML, cannot inject base tag");
+            return html.getBytes(StandardCharsets.UTF_8);
+        }
+
+        // Find the closing > of the head tag
+        int closeIndex = html.indexOf(">", headIndex);
+        if (closeIndex == -1) {
+            log.warn("Malformed <head> tag, cannot inject base tag");
+            return html.getBytes(StandardCharsets.UTF_8);
+        }
+
+        // Inject base tag immediately after <head>
+        String baseTag = "<base href=\"/api/v1/ephemera/\">";
+        String modifiedHtml = html.substring(0, closeIndex + 1) + baseTag + html.substring(closeIndex + 1);
+
+        log.debug("Successfully injected base tag and rewrote asset paths");
         return modifiedHtml.getBytes(StandardCharsets.UTF_8);
     }
 
@@ -170,7 +218,7 @@ public class EphemeraProxyService {
 
     private URI buildTargetUri(HttpServletRequest request) {
         try {
-            String baseUrl = properties.getBaseUrl();
+            String baseUrl = properties.getEffectiveBaseUrl();
             String relativePath = resolveRelativePath(request);
             StringBuilder uriBuilder = new StringBuilder();
             uriBuilder.append(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl);

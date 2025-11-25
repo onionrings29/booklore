@@ -104,6 +104,13 @@ export interface KoboSettings {
   conversionLimitInMb: number;
 }
 
+export interface EphemeraSettings {
+  enabled: boolean;
+  serverIp: string | null;
+  serverPort: number | null;
+  showButton: boolean;
+}
+
 export interface AppSettings {
   autoBookSearch: boolean;
   similarBookRecommendation: boolean;
@@ -122,6 +129,7 @@ export interface AppSettings {
   metadataPersistenceSettings: MetadataPersistenceSettings;
   metadataPublicReviewsSettings: PublicReviewSettings;
   koboSettings: KoboSettings;
+  ephemeraSettings: EphemeraSettings;
   metadataDownloadOnBookdrop: boolean;
 }
 
@@ -142,5 +150,6 @@ export enum AppSettingKey {
   METADATA_PERSISTENCE_SETTINGS = 'METADATA_PERSISTENCE_SETTINGS',
   METADATA_DOWNLOAD_ON_BOOKDROP = 'METADATA_DOWNLOAD_ON_BOOKDROP',
   METADATA_PUBLIC_REVIEWS_SETTINGS = 'METADATA_PUBLIC_REVIEWS_SETTINGS',
-  KOBO_SETTINGS = 'KOBO_SETTINGS'
+  KOBO_SETTINGS = 'KOBO_SETTINGS',
+  EPHEMERA_SETTINGS = 'EPHEMERA_SETTINGS'
 }

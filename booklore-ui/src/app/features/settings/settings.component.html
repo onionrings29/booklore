@@ -44,6 +44,11 @@
           <p-tab [value]="SettingsTab.DeviceSettings">
             <i class="pi pi-mobile"></i> Devices
           </p-tab>
+          @if (userState.user.permissions.admin) {
+            <p-tab [value]="SettingsTab.EphemeraSettings">
+              <i class="pi pi-external-link"></i> Ephemera
+            </p-tab>
+          }
         </p-tablist>
         <p-tabpanels>
           <p-tabpanel [value]="SettingsTab.ReaderSettings">
@@ -86,6 +91,11 @@
           <p-tabpanel [value]="SettingsTab.DeviceSettings">
             <app-device-settings-component></app-device-settings-component>
           </p-tabpanel>
+          @if (userState.user.permissions.admin) {
+            <p-tabpanel [value]="SettingsTab.EphemeraSettings">
+              <app-ephemera-settings></app-ephemera-settings>
+            </p-tabpanel>
+          }
         </p-tabpanels>
       </p-tabs>
     </div>
