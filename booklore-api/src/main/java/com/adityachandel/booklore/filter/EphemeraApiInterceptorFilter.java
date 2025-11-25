@@ -34,7 +34,6 @@ import java.util.Set;
 @Slf4j
 @Component
 @Order(1)  // Run before security filters
-@RequiredArgsConstructor
 public class EphemeraApiInterceptorFilter extends OncePerRequestFilter {
 
     private static final Set<String> FORWARDED_HEADERS = Set.of(
@@ -88,21 +87,27 @@ public class EphemeraApiInterceptorFilter extends OncePerRequestFilter {
             return false;
         }
 
+        // Don't intercept booklore's own API endpoints
+        if (requestUri.startsWith("/api/v1/")) {
+            return false;
+        }
+
         // Don't intercept if referer is null
         if (referer == null || referer.isEmpty()) {
             return false;
         }
 
-        // Check if the referer is from the Ephemera iframe or pages
-        // The referer will be like: https://library.saulutions.ca/ephemera
-        // or when navigating within ephemera: https://library.saulutions.ca/queue
-        return referer.contains("/ephemera") ||
-               referer.contains("/queue") ||
-               referer.contains("/requests") ||
-               referer.contains("/settings") ||
-               referer.contains("/indexers") ||
-               referer.contains("/status") ||
-               referer.contains("/api/v1/ephemera");
+        // CRITICAL: Only intercept if the referer is specifically from the Ephemera iframe
+        // The referer must contain /api/v1/ephemera/ which is the unique ephemera proxy path
+        // This ensures we ONLY intercept requests originating from ephemera's iframe,
+        // not from any other booklore pages
+        boolean isFromEphemera = referer.contains("/api/v1/ephemera/");
+
+        if (isFromEphemera) {
+            log.debug("Detected API request from Ephemera iframe: {} with referer: {}", requestUri, referer);
+        }
+
+        return isFromEphemera;
     }
 
     /**
