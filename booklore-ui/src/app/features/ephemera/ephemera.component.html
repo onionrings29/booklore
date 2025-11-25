@@ -1,0 +1,46 @@
+<div class="overflow-x-auto">
+  <div class="flex flex-col h-[calc(100dvh-6.1rem)] rounded-xl overflow-hidden bg-[var(--card-background)] border-[1px] border-solid border-[var(--p-content-border-color)]">
+
+    <!-- Header Section -->
+    <div class="px-4 md:px-6 pt-6 pb-4 border-b border-[var(--p-content-border-color)]">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-xl font-semibold pb-1 flex items-center gap-2">
+            <i class="pi pi-external-link"></i>
+            Ephemera
+            <a href="https://github.com/onionrings29/ephemera" target="_blank" rel="noopener noreferrer">
+              <i
+                class="pi pi-github text-sky-600 cursor-pointer"
+                style="font-size: 0.9rem"
+                pTooltip="View Ephemera on GitHub"
+                tooltipPosition="top"></i>
+            </a>
+          </h2>
+          <p class="text-sm text-[var(--p-text-muted-color)]">
+            Search and download books from your favorite archive. Ephemera runs securely inside Booklore with full authentication.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Iframe Container -->
+    <div class="relative flex-1">
+      <iframe
+        *ngIf="iframeUrl"
+        class="absolute inset-0 h-full w-full border-0"
+        [src]="iframeUrl"
+        title="Ephemera Book Downloader"
+        (load)="handleLoad()"
+      ></iframe>
+
+      <!-- Loading State -->
+      <div *ngIf="isLoading" class="absolute inset-0 flex items-center justify-center bg-[var(--card-background)] z-50">
+        <div class="flex flex-col items-center space-y-3">
+          <p-progressSpinner class="w-8 h-8" strokeWidth="4"/>
+          <span class="text-[var(--p-text-muted-color)]">Connecting to Ephemera...</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>

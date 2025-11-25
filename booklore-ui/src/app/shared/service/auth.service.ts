@@ -24,6 +24,32 @@ export class AuthService {
   public tokenSubject = new BehaviorSubject<string | null>(this.getOidcAccessToken() || this.getInternalAccessToken());
   public token$ = this.tokenSubject.asObservable();
 
+  constructor() {
+    // Ensure cookie is set for existing sessions (retroactive fix)
+    this.ensureTokenCookieExists();
+  }
+
+  /**
+   * Ensures the accessToken cookie exists if there's a valid token in localStorage.
+   * This is needed for iframe/navigation requests that don't go through HTTP interceptors.
+   */
+  private ensureTokenCookieExists(): void {
+    const token = this.getInternalAccessToken() || this.getOidcAccessToken();
+    if (token && !this.hasTokenCookie()) {
+      // Set the cookie for existing sessions
+      // Use Secure flag only for HTTPS
+      const isSecure = window.location.protocol === 'https:';
+      const secureFlag = isSecure ? '; Secure' : '';
+      document.cookie = `accessToken=${token}; path=/; SameSite=Strict${secureFlag}`;
+    }
+  }
+
+  /**
+   * Check if the accessToken cookie exists
+   */
+  private hasTokenCookie(): boolean {
+    return document.cookie.split('; ').some(cookie => cookie.startsWith('accessToken='));
+  }
 
   internalLogin(credentials: { username: string; password: string }): Observable<{ accessToken: string; refreshToken: string, isDefaultPassword: string }> {
     return this.http.post<{ accessToken: string; refreshToken: string, isDefaultPassword: string }>(`${this.apiUrl}/login`, credentials).pipe(
@@ -61,6 +87,13 @@ export class AuthService {
   saveInternalTokens(accessToken: string, refreshToken: string): void {
     localStorage.setItem('accessToken_Internal', accessToken);
     localStorage.setItem('refreshToken_Internal', refreshToken);
+
+    // Also store in cookie for iframe/navigation requests (e.g., ephemera)
+    // Use Secure flag only for HTTPS
+    const isSecure = window.location.protocol === 'https:';
+    const secureFlag = isSecure ? '; Secure' : '';
+    document.cookie = `accessToken=${accessToken}; path=/; SameSite=Strict${secureFlag}`;
+
     this.tokenSubject.next(accessToken);
   }
 
@@ -92,6 +125,12 @@ export class AuthService {
     this.oAuthStorage.removeItem("access_token");
     this.oAuthStorage.removeItem("refresh_token");
     this.oAuthStorage.removeItem("id_token");
+
+    // Clear the accessToken cookie
+    const isSecure = window.location.protocol === 'https:';
+    const secureFlag = isSecure ? '; Secure' : '';
+    document.cookie = `accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Strict${secureFlag}`;
+
     this.tokenSubject.next(null);
     this.getRxStompService().deactivate();
     this.router.navigate(['/login']);

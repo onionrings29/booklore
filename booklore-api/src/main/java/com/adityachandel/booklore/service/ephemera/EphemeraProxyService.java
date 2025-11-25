@@ -67,7 +67,15 @@ public class EphemeraProxyService {
         try {
             HttpResponse<byte[]> response = httpClient.send(outboundRequest, HttpResponse.BodyHandlers.ofByteArray());
             HttpHeaders headers = extractResponseHeaders(response);
-            return ResponseEntity.status(response.statusCode()).headers(headers).body(response.body());
+            byte[] responseBody = response.body();
+
+            // Inject base tag for HTML responses to fix relative URLs
+            String contentType = response.headers().firstValue(HttpHeaders.CONTENT_TYPE).orElse("");
+            if (contentType.contains("text/html") && responseBody != null && responseBody.length > 0) {
+                responseBody = injectBaseTag(responseBody);
+            }
+
+            return ResponseEntity.status(response.statusCode()).headers(headers).body(responseBody);
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
             log.error("Ephemera proxy interrupted", ie);
