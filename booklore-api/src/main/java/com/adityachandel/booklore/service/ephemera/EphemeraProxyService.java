@@ -95,23 +95,54 @@ public class EphemeraProxyService {
      */
     private byte[] rewriteJavaScript(byte[] jsBytes) {
         String js = new String(jsBytes, StandardCharsets.UTF_8);
+        boolean modified = false;
 
         // Rewrite baseUrl configuration from absolute to relative path
-        // Handles patterns like: baseUrl: "/api" or baseUrl:"/api" or baseUrl : "/api"
-        js = js.replaceAll("baseUrl\\s*:\\s*\"/api\"", "baseUrl: \"./api\"");
-        js = js.replaceAll("baseUrl\\s*:\\s*'/api'", "baseUrl: './api'");
+        // Handles multiple patterns including minified code
+        String original = js;
+
+        // Pattern 1: baseUrl: "/api" (with or without spaces)
+        js = js.replaceAll("baseUrl\\s*:\\s*\"/api\"", "baseUrl:\"./api\"");
+        js = js.replaceAll("baseUrl\\s*:\\s*'/api'", "baseUrl:'./api'");
+
+        // Pattern 2: baseUrl:"/api" (minified, no spaces)
+        js = js.replaceAll("baseUrl:\"/api\"", "baseUrl:\"./api\"");
+        js = js.replaceAll("baseUrl:'/api'", "baseUrl:'./api'");
+
+        // Pattern 3: {baseUrl:"/api"} (object literal)
+        js = js.replaceAll("\\{baseUrl:\"/api\"", "{baseUrl:\"./api\"");
+        js = js.replaceAll("\\{baseUrl:'/api'", "{baseUrl:'./api'");
+
+        // Pattern 4: "baseUrl":"/api" (JSON-style)
+        js = js.replaceAll("\"baseUrl\"\\s*:\\s*\"/api\"", "\"baseUrl\":\"./api\"");
+        js = js.replaceAll("'baseUrl'\\s*:\\s*'/api'", "'baseUrl':'./api'");
 
         // Rewrite EventSource and WebSocket paths to be relative
-        // EventSource is used for SSE (Server-Sent Events)
         js = js.replaceAll("new EventSource\\(\\s*\"/api/", "new EventSource(\"./api/");
         js = js.replaceAll("new EventSource\\(\\s*'/api/", "new EventSource('./api/");
         js = js.replaceAll("new WebSocket\\(\\s*\"/api/", "new WebSocket(\"./api/");
         js = js.replaceAll("new WebSocket\\(\\s*'/api/", "new WebSocket('./api/");
 
-        // Rewrite any other absolute API paths in JavaScript
+        // Rewrite fetch, XMLHttpRequest, and axios calls with absolute /api/ paths
+        js = js.replaceAll("fetch\\(\\s*\"/api/", "fetch(\"./api/");
+        js = js.replaceAll("fetch\\(\\s*'/api/", "fetch('./api/");
+
+        // Rewrite URL construction patterns
+        js = js.replaceAll("\\+\\s*\"/api/", "+\"./api/");
+        js = js.replaceAll("\\+\\s*'/api/", "+'./api/");
+        js = js.replaceAll("`/api/", "`./api/");
+
+        // Rewrite any standalone "/api/" or '/api/' strings that might be URLs
+        // But be careful not to rewrite things that aren't URLs
         js = js.replaceAll("([\"'])(/api/[^\"']*)(\\1)", "$1.$2$3");
 
-        log.debug("Rewrote JavaScript API paths to relative paths");
+        modified = !js.equals(original);
+        if (modified) {
+            log.info("Rewrote JavaScript API paths to relative paths (matched patterns in bundle)");
+        } else {
+            log.debug("No JavaScript API path patterns found to rewrite");
+        }
+
         return js.getBytes(StandardCharsets.UTF_8);
     }
 
