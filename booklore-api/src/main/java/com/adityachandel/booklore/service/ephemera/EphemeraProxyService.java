@@ -230,11 +230,14 @@ public class EphemeraProxyService {
             return html.getBytes(StandardCharsets.UTF_8);
         }
 
-        // Inject base tag immediately after <head>
+        // Inject base tag AND meta tag for API path configuration immediately after <head>
+        // The meta tag is read by ephemera's getApiBasePath() function to configure the API client
         String baseTag = "<base href=\"/api/v1/ephemera/\">";
-        String modifiedHtml = html.substring(0, closeIndex + 1) + baseTag + html.substring(closeIndex + 1);
+        String metaTag = "<meta name=\"api-base-path\" content=\"./api\">";
+        String injectedTags = baseTag + metaTag;
+        String modifiedHtml = html.substring(0, closeIndex + 1) + injectedTags + html.substring(closeIndex + 1);
 
-        log.debug("Successfully injected base tag and rewrote asset paths");
+        log.info("Successfully injected base tag and API base path meta tag");
         return modifiedHtml.getBytes(StandardCharsets.UTF_8);
     }
 
