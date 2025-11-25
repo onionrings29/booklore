@@ -255,4 +255,13 @@ public class SettingPersistenceHelper {
                 .conversionLimitInMb(100)
                 .build();
     }
+
+    public EphemeraSettings getDefaultEphemeraSettings() {
+        return EphemeraSettings.builder()
+                .enabled(false)
+                .serverIp(null)
+                .serverPort(null)
+                .showButton(false)
+                .build();
+    }
 }
