@@ -36,6 +36,44 @@ import java.util.Set;
 @Order(1)  // Run before security filters
 public class EphemeraApiInterceptorFilter extends OncePerRequestFilter {
 
+    /**
+     * List of all Booklore API path prefixes that should NEVER be intercepted.
+     * This is an explicit whitelist of all known Booklore endpoints.
+     */
+    private static final Set<String> BOOKLORE_API_PATHS = Set.of(
+            "/api/v1/auth",              // Authentication
+            "/api/v1/users",             // User management
+            "/api/v1/books",             // Books and metadata
+            "/api/v1/authors",           // Authors
+            "/api/v1/libraries",         // Libraries
+            "/api/v1/shelves",           // Shelves
+            "/api/v1/reviews",           // Book reviews
+            "/api/v1/book-notes",        // Book notes
+            "/api/v1/settings",          // App settings
+            "/api/v1/public-settings",   // Public settings
+            "/api/v1/ephemera-settings", // Ephemera configuration (admin)
+            "/api/v1/tasks",             // Background tasks
+            "/api/v1/background",        // Background uploads
+            "/api/v1/bookdrop",          // Bookdrop file management
+            "/api/v1/files",             // File operations
+            "/api/v1/path",              // Path utilities
+            "/api/v1/media",             // Book media (covers, etc)
+            "/api/v1/pdf",               // PDF reader
+            "/api/v1/cbx",               // CBX reader
+            "/api/v1/opds",              // OPDS catalog
+            "/api/v1/koreader-users",    // KOReader users
+            "/api/v1/kobo-settings",     // Kobo settings
+            "/api/v1/version",           // Version info
+            "/api/v1/setup",             // Initial setup
+            "/api/v1/ephemera",          // Ephemera proxy (handled separately)
+            "/api/v2/opds-users",        // OPDS users v2
+            "/api/v2/email",             // Email v2
+            "/api/metadata/tasks",       // Metadata tasks
+            "/api/magic-shelves",        // Magic shelves
+            "/api/kobo/",                // Kobo integration
+            "/api/koreader"              // KOReader integration
+    );
+
     private static final Set<String> FORWARDED_HEADERS = Set.of(
             HttpHeaders.ACCEPT.toLowerCase(Locale.ROOT),
             HttpHeaders.ACCEPT_LANGUAGE.toLowerCase(Locale.ROOT),
@@ -82,14 +120,13 @@ public class EphemeraApiInterceptorFilter extends OncePerRequestFilter {
             return false;
         }
 
-        // Don't intercept requests that are already going through the Ephemera proxy
-        if (requestUri.startsWith("/api/v1/ephemera")) {
-            return false;
-        }
-
-        // Don't intercept booklore's own API endpoints
-        if (requestUri.startsWith("/api/v1/")) {
-            return false;
+        // CRITICAL: Check if this is a known Booklore API endpoint using explicit whitelist
+        // This prevents us from accidentally intercepting Booklore's own APIs
+        for (String bookloreApiPath : BOOKLORE_API_PATHS) {
+            if (requestUri.startsWith(bookloreApiPath)) {
+                log.trace("Skipping Booklore API endpoint: {}", requestUri);
+                return false;
+            }
         }
 
         // Don't intercept if referer is null
@@ -104,7 +141,7 @@ public class EphemeraApiInterceptorFilter extends OncePerRequestFilter {
         boolean isFromEphemera = referer.contains("/api/v1/ephemera/");
 
         if (isFromEphemera) {
-            log.debug("Detected API request from Ephemera iframe: {} with referer: {}", requestUri, referer);
+            log.info("Intercepting ephemera API call: {} (referer: {})", requestUri, referer);
         }
 
         return isFromEphemera;
