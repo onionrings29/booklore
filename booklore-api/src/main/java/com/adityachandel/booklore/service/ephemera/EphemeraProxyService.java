@@ -87,15 +87,19 @@ public class EphemeraProxyService {
     }
 
     /**
-     * Injects a base tag into HTML to fix relative URLs when ephemera is served via proxy
+     * Injects a base tag and rewrites absolute paths to work correctly when ephemera is served via proxy
      */
     private byte[] injectBaseTag(byte[] htmlBytes) {
         String html = new String(htmlBytes, StandardCharsets.UTF_8);
 
-        // Only inject if base tag doesn't already exist
+        // Rewrite absolute paths to relative paths so base tag works correctly
+        // Paths starting with / are absolute from domain root and ignore base tag
+        html = html.replaceAll("(src|href)=\"/([^/])", "$1=\"./$2");
+
+        // Only inject base tag if it doesn't already exist
         if (html.toLowerCase(Locale.ROOT).contains("<base ")) {
             log.debug("Base tag already exists, skipping injection");
-            return htmlBytes;
+            return html.getBytes(StandardCharsets.UTF_8);
         }
 
         // Find the <head> tag (case-insensitive)
@@ -104,21 +108,21 @@ public class EphemeraProxyService {
 
         if (headIndex == -1) {
             log.warn("No <head> tag found in HTML, cannot inject base tag");
-            return htmlBytes;
+            return html.getBytes(StandardCharsets.UTF_8);
         }
 
         // Find the closing > of the head tag
         int closeIndex = html.indexOf(">", headIndex);
         if (closeIndex == -1) {
             log.warn("Malformed <head> tag, cannot inject base tag");
-            return htmlBytes;
+            return html.getBytes(StandardCharsets.UTF_8);
         }
 
         // Inject base tag immediately after <head>
         String baseTag = "<base href=\"/api/v1/ephemera/\">";
         String modifiedHtml = html.substring(0, closeIndex + 1) + baseTag + html.substring(closeIndex + 1);
 
-        log.debug("Successfully injected base tag into HTML");
+        log.debug("Successfully injected base tag and rewrote asset paths");
         return modifiedHtml.getBytes(StandardCharsets.UTF_8);
     }
 
