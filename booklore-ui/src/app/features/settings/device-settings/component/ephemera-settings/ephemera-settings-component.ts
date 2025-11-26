@@ -68,6 +68,11 @@ export class EphemeraSettingsComponent implements OnInit, OnDestroy {
   }
 
   onToggleChange() {
+    if (!this.ephemeraSettings.enabled) {
+      // Clear server details when disabled
+      this.ephemeraSettings.serverIp = null;
+      this.ephemeraSettings.serverPort = null;
+    }
     this.settingsChange$.next();
   }
 
@@ -76,12 +81,21 @@ export class EphemeraSettingsComponent implements OnInit, OnDestroy {
   }
 
   saveSettings() {
+    if (this.ephemeraSettings.enabled && (!this.ephemeraSettings.serverIp || !this.ephemeraSettings.serverPort)) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'Incomplete Configuration',
+        detail: 'Please provide both server address and port'
+      });
+      return;
+    }
+
     this.ephemeraService.updateSettings(this.ephemeraSettings).subscribe({
       next: () => {
         this.messageService.add({
           severity: 'success',
           summary: 'Settings Saved',
-          detail: 'Ephemera settings updated successfully'
+          detail: 'Ephemera settings updated successfully. The Ephemera button is now ' + (this.ephemeraSettings.enabled ? 'visible' : 'hidden') + ' in the navigation bar.'
         });
       },
       error: () => {

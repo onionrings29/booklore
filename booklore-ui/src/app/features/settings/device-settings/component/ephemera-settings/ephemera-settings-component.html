@@ -14,7 +14,7 @@
       <div class="section-header">
         <h3 class="section-title">
           <i class="pi pi-cog"></i>
-          Your Ephemera Configuration
+          Connection Settings
         </h3>
         <p class="section-description">
           Configure your personal Ephemera server connection. These settings are specific to your account.
@@ -26,7 +26,7 @@
           <div class="setting-item">
             <div class="setting-info">
               <div class="setting-label-row">
-                <label class="setting-label">Enable Ephemera</label>
+                <label class="setting-label">Enable Ephemera Integration</label>
                 <p-toggle-switch
                   id="enabled"
                   name="enabled"
@@ -35,7 +35,7 @@
                 </p-toggle-switch>
               </div>
               <p class="setting-description">
-                Enable integration with your Ephemera book processing service. When enabled, an Ephemera button will appear in the top navigation bar.
+                Enable integration with your Ephemera book processing service. When enabled, an Ephemera button will appear in the top navigation bar for quick access.
               </p>
             </div>
           </div>
@@ -43,7 +43,7 @@
           @if (ephemeraSettings.enabled) {
             <div class="setting-item">
               <div class="setting-info">
-                <label class="setting-label">Server IP Address</label>
+                <label class="setting-label">Server Address</label>
                 <p class="setting-description">
                   The IP address or hostname of your Ephemera server instance.
                 </p>
@@ -57,6 +57,7 @@
                   (ngModelChange)="onInputChange()"
                   placeholder="e.g., 192.168.1.100 or ephemera.example.com"
                   class="w-full"
+                  required
                 />
               </div>
             </div>
@@ -65,7 +66,7 @@
               <div class="setting-info">
                 <label class="setting-label">Server Port</label>
                 <p class="setting-description">
-                  The port number where your Ephemera instance is running.
+                  The port number where your Ephemera instance is running (typically 8286).
                 </p>
               </div>
               <div class="setting-control">
@@ -76,8 +77,9 @@
                   (ngModelChange)="onInputChange()"
                   [min]="1"
                   [max]="65535"
-                  placeholder="e.g., 8286"
-                  class="w-full">
+                  placeholder="8286"
+                  class="w-full"
+                  required>
                 </p-inputnumber>
               </div>
             </div>
@@ -85,7 +87,7 @@
             <div class="info-banner">
               <i class="pi pi-info-circle"></i>
               <p>
-                Your Ephemera instance must be accessible from this Booklore server. Make sure your firewall settings allow the connection.
+                Your Ephemera instance must be accessible from this Booklore server. Ensure your firewall settings allow the connection on the specified port.
               </p>
             </div>
           }
