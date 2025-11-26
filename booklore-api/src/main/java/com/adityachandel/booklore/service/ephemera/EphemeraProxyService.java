@@ -317,6 +317,13 @@ public class EphemeraProxyService {
             String baseUrl = (userSettings != null)
                 ? properties.getEffectiveBaseUrl(userSettings)
                 : properties.getEffectiveBaseUrl();
+
+            // Validate that ephemera is properly configured
+            if (baseUrl == null || baseUrl.isBlank()) {
+                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Ephemera is not configured. Please configure your Ephemera server settings.");
+            }
+
             String relativePath = resolveRelativePath(request);
             StringBuilder uriBuilder = new StringBuilder();
             uriBuilder.append(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl);

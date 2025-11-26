@@ -16,7 +16,7 @@ public class EphemeraProperties {
 
     private final AppSettingService appSettingService;
 
-    private String baseUrl = "http://10.129.20.50:8286";
+    private String baseUrl;
     private long connectTimeoutMs = 2000;
     private long readTimeoutMs = 30000;
     private List<String> allowedPaths = List.of("/**");
@@ -54,7 +54,8 @@ public class EphemeraProperties {
         if (settings != null && settings.isEnabled() && settings.getServerIp() != null && settings.getServerPort() != null) {
             return "http://" + settings.getServerIp() + ":" + settings.getServerPort();
         }
-        return baseUrl;
+        // No fallback - ephemera must be explicitly configured
+        return baseUrl != null && !baseUrl.isBlank() ? baseUrl : null;
     }
 
     /**

@@ -14,7 +14,7 @@ app:
     admin-group: ${REMOTE_AUTH_ADMIN_GROUP}
   force-disable-oidc: ${FORCE_DISABLE_OIDC:false}
   ephemera:
-    base-url: ${EPHEMERA_BASE_URL:http://10.129.20.50:8286}
+    base-url: ${EPHEMERA_BASE_URL:}
     api-base-path: ${EPHEMERA_API_BASE_PATH:/api}
     connect-timeout-ms: ${EPHEMERA_CONNECT_TIMEOUT_MS:2000}
     read-timeout-ms: ${EPHEMERA_READ_TIMEOUT_MS:30000}
