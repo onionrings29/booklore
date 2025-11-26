@@ -73,7 +73,6 @@ export class AppTopBarComponent implements OnDestroy {
 
   private latestTasks: { [taskId: string]: MetadataBatchProgressNotification } = {};
   private latestHasPendingFiles = false;
-  private latestHasDuplicateFiles = false;
   private latestNotificationSeverity?: Severity;
 
   constructor(
@@ -111,15 +110,6 @@ export class AppTopBarComponent implements OnDestroy {
         this.hasPendingBookdropFiles = hasPending;
         this.updateCompletedTaskCount();
         this.updateTaskVisibilityWithBookdrop();
-      });
-
-    this.duplicateFileService.duplicateFiles$
-      .pipe(takeUntil(this.destroy$))
-      .subscribe((duplicateFiles) => {
-        this.latestHasDuplicateFiles = duplicateFiles && duplicateFiles.length > 0;
-        this.hasDuplicateFiles = this.latestHasDuplicateFiles;
-        this.updateCompletedTaskCount();
-        this.updateTaskVisibilityWithDuplicates();
       });
   }
 
@@ -230,8 +220,7 @@ export class AppTopBarComponent implements OnDestroy {
   private updateCompletedTaskCount() {
     const completedMetadataTasks = Object.values(this.latestTasks).length;
     const bookdropFileTaskCount = this.latestHasPendingFiles ? 1 : 0;
-    const duplicateFileTaskCount = this.latestHasDuplicateFiles ? 1 : 0;
-    this.completedTaskCount = completedMetadataTasks + bookdropFileTaskCount + duplicateFileTaskCount;
+    this.completedTaskCount = completedMetadataTasks + bookdropFileTaskCount;
   }
 
   private updateTaskVisibility(tasks: { [taskId: string]: MetadataBatchProgressNotification }) {
@@ -242,11 +231,6 @@ export class AppTopBarComponent implements OnDestroy {
 
   private updateTaskVisibilityWithBookdrop() {
     this.hasActiveOrCompletedTasks = this.hasActiveOrCompletedTasks || this.hasPendingBookdropFiles;
-    this.updateTaskVisibilityWithDuplicates();
-  }
-
-  private updateTaskVisibilityWithDuplicates() {
-    this.hasActiveOrCompletedTasks = this.hasActiveOrCompletedTasks || this.hasDuplicateFiles;
   }
 
   get iconClass(): string {
@@ -270,7 +254,7 @@ export class AppTopBarComponent implements OnDestroy {
           return 'orange';
       }
     }
-    if (this.completedTaskCount > 0 || this.hasPendingBookdropFiles || this.hasDuplicateFiles)
+    if (this.completedTaskCount > 0 || this.hasPendingBookdropFiles)
       return 'limegreen';
     return 'inherit';
   }
@@ -281,7 +265,7 @@ export class AppTopBarComponent implements OnDestroy {
 
   get shouldShowNotificationBadge(): boolean {
     return (
-      (this.completedTaskCount > 0 || this.hasPendingBookdropFiles || this.hasDuplicateFiles) &&
+      (this.completedTaskCount > 0 || this.hasPendingBookdropFiles) &&
       !this.progressHighlight &&
       !this.showPulse
     );
