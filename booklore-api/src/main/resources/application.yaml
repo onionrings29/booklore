@@ -15,6 +15,7 @@ app:
   force-disable-oidc: ${FORCE_DISABLE_OIDC:false}
   ephemera:
     base-url: ${EPHEMERA_BASE_URL:http://10.129.20.50:8286}
+    api-base-path: ${EPHEMERA_API_BASE_PATH:/api}
     connect-timeout-ms: ${EPHEMERA_CONNECT_TIMEOUT_MS:2000}
     read-timeout-ms: ${EPHEMERA_READ_TIMEOUT_MS:30000}
     allowed-paths: ${EPHEMERA_ALLOWED_PATHS:/**}

@@ -2,121 +2,95 @@
   <div class="settings-header">
     <h2 class="settings-title">
       <i class="pi pi-external-link"></i>
-      Ephemera Integration Configuration
+      Ephemera Integration
     </h2>
     <p class="settings-description">
-      Configure Ephemera integration to process and manage your book metadata through the Ephemera service.
+      Connect to your personal Ephemera instance to process and manage book metadata. Each user can configure their own Ephemera server.
     </p>
   </div>
 
-  @if (isAdmin) {
-    <div class="settings-content">
-      <div class="preferences-section">
-        <div class="section-header">
-          <h3 class="section-title">
-            <i class="pi pi-cog"></i>
-            Ephemera Configuration
-          </h3>
-          <p class="section-description">
-            Enable and configure the Ephemera service integration.
-          </p>
-        </div>
+  <div class="settings-content">
+    <div class="preferences-section">
+      <div class="section-header">
+        <h3 class="section-title">
+          <i class="pi pi-cog"></i>
+          Your Ephemera Configuration
+        </h3>
+        <p class="section-description">
+          Configure your personal Ephemera server connection. These settings are specific to your account.
+        </p>
+      </div>
 
-        <div class="settings-card">
-          <form #ephemeraForm="ngForm">
+      <div class="settings-card">
+        <form #ephemeraForm="ngForm">
+          <div class="setting-item">
+            <div class="setting-info">
+              <div class="setting-label-row">
+                <label class="setting-label">Enable Ephemera</label>
+                <p-toggle-switch
+                  id="enabled"
+                  name="enabled"
+                  [(ngModel)]="ephemeraSettings.enabled"
+                  (ngModelChange)="onToggleChange()">
+                </p-toggle-switch>
+              </div>
+              <p class="setting-description">
+                Enable integration with your Ephemera book processing service. When enabled, an Ephemera button will appear in the top navigation bar.
+              </p>
+            </div>
+          </div>
+
+          @if (ephemeraSettings.enabled) {
             <div class="setting-item">
               <div class="setting-info">
-                <div class="setting-label-row">
-                  <label class="setting-label">Enable Ephemera</label>
-                  <p-toggle-switch
-                    id="enabled"
-                    name="enabled"
-                    [(ngModel)]="ephemeraSettings.enabled"
-                    (ngModelChange)="onToggleChange()">
-                  </p-toggle-switch>
-                </div>
+                <label class="setting-label">Server IP Address</label>
                 <p class="setting-description">
-                  Enable integration with the Ephemera book processing service.
+                  The IP address or hostname of your Ephemera server instance.
                 </p>
+              </div>
+              <div class="setting-control">
+                <input
+                  pInputText
+                  id="serverIp"
+                  name="serverIp"
+                  [(ngModel)]="ephemeraSettings.serverIp"
+                  (ngModelChange)="onInputChange()"
+                  placeholder="e.g., 192.168.1.100 or ephemera.example.com"
+                  class="w-full"
+                />
               </div>
             </div>
 
-            @if (ephemeraSettings.enabled) {
-              <div class="setting-item">
-                <div class="setting-info">
-                  <label class="setting-label">Server IP Address</label>
-                  <p class="setting-description">
-                    The IP address of your Ephemera server.
-                  </p>
-                </div>
-                <div class="setting-control">
-                  <input
-                    pInputText
-                    id="serverIp"
-                    name="serverIp"
-                    [(ngModel)]="ephemeraSettings.serverIp"
-                    (ngModelChange)="onInputChange()"
-                    placeholder="e.g., 192.168.1.100"
-                    class="w-full"
-                  />
-                </div>
+            <div class="setting-item">
+              <div class="setting-info">
+                <label class="setting-label">Server Port</label>
+                <p class="setting-description">
+                  The port number where your Ephemera instance is running.
+                </p>
               </div>
+              <div class="setting-control">
+                <p-inputnumber
+                  id="serverPort"
+                  name="serverPort"
+                  [(ngModel)]="ephemeraSettings.serverPort"
+                  (ngModelChange)="onInputChange()"
+                  [min]="1"
+                  [max]="65535"
+                  placeholder="e.g., 8286"
+                  class="w-full">
+                </p-inputnumber>
+              </div>
+            </div>
 
-              <div class="setting-item">
-                <div class="setting-info">
-                  <label class="setting-label">Server Port</label>
-                  <p class="setting-description">
-                    The port number where Ephemera is running.
-                  </p>
-                </div>
-                <div class="setting-control">
-                  <p-inputnumber
-                    id="serverPort"
-                    name="serverPort"
-                    [(ngModel)]="ephemeraSettings.serverPort"
-                    (ngModelChange)="onInputChange()"
-                    [min]="1"
-                    [max]="65535"
-                    placeholder="e.g., 8286"
-                    class="w-full">
-                  </p-inputnumber>
-                </div>
-              </div>
-
-              <div class="setting-item">
-                <div class="setting-info">
-                  <div class="setting-label-row">
-                    <label class="setting-label">Show Ephemera Button</label>
-                    <p-toggle-switch
-                      id="showButton"
-                      name="showButton"
-                      [(ngModel)]="ephemeraSettings.showButton"
-                      (ngModelChange)="onToggleChange()">
-                    </p-toggle-switch>
-                  </div>
-                  <p class="setting-description">
-                    Display the Ephemera button in the top navigation bar for quick access.
-                  </p>
-                </div>
-              </div>
-            }
-          </form>
-        </div>
+            <div class="info-banner">
+              <i class="pi pi-info-circle"></i>
+              <p>
+                Your Ephemera instance must be accessible from this Booklore server. Make sure your firewall settings allow the connection.
+              </p>
+            </div>
+          }
+        </form>
       </div>
     </div>
-  } @else {
-    <div class="settings-content">
-      <div class="access-denied-card">
-        <i class="pi pi-lock"></i>
-        <div class="access-denied-content">
-          <h3>Access Restricted</h3>
-          <p>
-            Access to Ephemera settings is restricted to administrators.
-            <br>
-            Please contact your administrator for assistance.
-          </p>
-        </div>
-      </div>
-    </div>
-  }
+  </div>
 </div>

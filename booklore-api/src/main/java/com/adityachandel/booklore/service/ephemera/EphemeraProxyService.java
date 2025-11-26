@@ -1,6 +1,7 @@
 package com.adityachandel.booklore.service.ephemera;
 
 import com.adityachandel.booklore.model.dto.BookLoreUser;
+import com.adityachandel.booklore.model.dto.settings.UserEphemeraSettings;
 import com.adityachandel.booklore.util.RequestUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -46,11 +47,13 @@ public class EphemeraProxyService {
     );
 
     private final EphemeraProperties properties;
+    private final UserEphemeraSettingsService userEphemeraSettingsService;
     private final HttpClient httpClient;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
-    public EphemeraProxyService(EphemeraProperties properties) {
+    public EphemeraProxyService(EphemeraProperties properties, UserEphemeraSettingsService userEphemeraSettingsService) {
         this.properties = properties;
+        this.userEphemeraSettingsService = userEphemeraSettingsService;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(properties.getConnectTimeoutMs()))
                 .build();
@@ -61,7 +64,7 @@ public class EphemeraProxyService {
         byte[] body = readBody(request);
         validateRequest(request);
 
-        URI targetUri = buildTargetUri(request);
+        URI targetUri = buildTargetUri(request, user);
         HttpRequest outboundRequest = buildOutboundRequest(request, body, user, targetUri);
 
         try {
@@ -95,23 +98,80 @@ public class EphemeraProxyService {
      */
     private byte[] rewriteJavaScript(byte[] jsBytes) {
         String js = new String(jsBytes, StandardCharsets.UTF_8);
+        String original = js;
+        int replacements = 0;
 
-        // Rewrite baseUrl configuration from absolute to relative path
-        // Handles patterns like: baseUrl: "/api" or baseUrl:"/api" or baseUrl : "/api"
-        js = js.replaceAll("baseUrl\\s*:\\s*\"/api\"", "baseUrl: \"./api\"");
-        js = js.replaceAll("baseUrl\\s*:\\s*'/api'", "baseUrl: './api'");
+        // Pattern 1: baseUrl: "/api" (with or without spaces) - MOST COMMON
+        String pattern1Before = "baseUrl\\s*:\\s*\"/api\"";
+        js = js.replaceAll(pattern1Before, "baseUrl:\"./api\"");
+        if (!js.equals(original)) {
+            replacements++;
+            log.info("Matched pattern: baseUrl: \"/api\"");
+        }
+
+        // Pattern 2: baseUrl: '/api' (single quotes)
+        js = js.replaceAll("baseUrl\\s*:\\s*'/api'", "baseUrl:'./api'");
+
+        // Pattern 3: {baseUrl:"/api"} (object literal, minified)
+        String beforeObj = js;
+        js = js.replaceAll("\\{baseUrl:\"/api\"", "{baseUrl:\"./api\"");
+        if (!js.equals(beforeObj)) {
+            replacements++;
+            log.info("Matched pattern: {{baseUrl:\"/api\"");
+        }
+
+        // Pattern 4: "baseUrl":"/api" (JSON-style with quotes on key)
+        js = js.replaceAll("\"baseUrl\"\\s*:\\s*\"/api\"", "\"baseUrl\":\"./api\"");
+
+        // Pattern 5: Catch variations with , or } after
+        js = js.replaceAll("baseUrl:\"/api\",", "baseUrl:\"./api\",");
+        js = js.replaceAll("baseUrl:\"/api\"}", "baseUrl:\"./api\"}");
+        js = js.replaceAll("baseUrl:'/api',", "baseUrl:'./api',");
+        js = js.replaceAll("baseUrl:'/api'}", "baseUrl:'./api'}");
+
+        // CRITICAL: Also rewrite the usage of baseUrl in the client
+        // The apiFetch function concatenates baseUrl with the path
+        // Pattern: clientConfig.baseUrl + path or baseUrl + path
+        js = js.replaceAll("clientConfig\\.baseUrl\\}\\$\\{", "clientConfig.baseUrl}${");
 
         // Rewrite EventSource and WebSocket paths to be relative
-        // EventSource is used for SSE (Server-Sent Events)
+        String beforeESE = js;
         js = js.replaceAll("new EventSource\\(\\s*\"/api/", "new EventSource(\"./api/");
+        if (!js.equals(beforeESE)) {
+            replacements++;
+            log.info("Matched pattern: new EventSource(\"/api/");
+        }
         js = js.replaceAll("new EventSource\\(\\s*'/api/", "new EventSource('./api/");
         js = js.replaceAll("new WebSocket\\(\\s*\"/api/", "new WebSocket(\"./api/");
         js = js.replaceAll("new WebSocket\\(\\s*'/api/", "new WebSocket('./api/");
 
-        // Rewrite any other absolute API paths in JavaScript
-        js = js.replaceAll("([\"'])(/api/[^\"']*)(\\1)", "$1.$2$3");
+        // Rewrite fetch calls with absolute /api/ paths
+        js = js.replaceAll("fetch\\(\\s*\"/api/", "fetch(\"./api/");
+        js = js.replaceAll("fetch\\(\\s*'/api/", "fetch('./api/");
 
-        log.debug("Rewrote JavaScript API paths to relative paths");
+        // Rewrite URL construction patterns
+        js = js.replaceAll("\\+\\s*\"/api/", "+\"./api/");
+        js = js.replaceAll("\\+\\s*'/api/", "+'./api/");
+        js = js.replaceAll("`/api/", "`./api/");
+
+        // AGGRESSIVE: Rewrite ALL standalone "/api" strings (not followed by /)
+        // This catches the baseUrl: "/api" configuration regardless of pattern
+        js = js.replaceAll(":\"/api\"", ":\"./api\"");
+        js = js.replaceAll(":'/api'", ":'./api'");
+
+        boolean modified = !js.equals(original);
+        if (modified) {
+            log.warn("Rewrote JavaScript API paths to relative paths ({} specific patterns matched)", replacements);
+            // Log a snippet to verify rewriting
+            if (js.contains("baseUrl:\"./api\"") || js.contains("baseUrl:'./api'")) {
+                log.warn("SUCCESS: Verified baseUrl was rewritten to use relative path");
+            } else {
+                log.error("WARNING: JavaScript was modified but baseUrl pattern not found in output!");
+            }
+        } else {
+            log.warn("WARNING: No JavaScript patterns matched for rewriting - this file may not be the bundle we're looking for");
+        }
+
         return js.getBytes(StandardCharsets.UTF_8);
     }
 
@@ -173,11 +233,14 @@ public class EphemeraProxyService {
             return html.getBytes(StandardCharsets.UTF_8);
         }
 
-        // Inject base tag immediately after <head>
+        // Inject base tag AND meta tag for API path configuration immediately after <head>
+        // The meta tag is read by ephemera's getApiBasePath() function to configure the API client
         String baseTag = "<base href=\"/api/v1/ephemera/\">";
-        String modifiedHtml = html.substring(0, closeIndex + 1) + baseTag + html.substring(closeIndex + 1);
+        String metaTag = "<meta name=\"api-base-path\" content=\"./api\">";
+        String injectedTags = baseTag + metaTag;
+        String modifiedHtml = html.substring(0, closeIndex + 1) + injectedTags + html.substring(closeIndex + 1);
 
-        log.debug("Successfully injected base tag and rewrote asset paths");
+        log.info("Successfully injected base tag and API base path meta tag");
         return modifiedHtml.getBytes(StandardCharsets.UTF_8);
     }
 
@@ -245,9 +308,15 @@ public class EphemeraProxyService {
         return FORWARDED_REQUEST_HEADERS.contains(lower);
     }
 
-    private URI buildTargetUri(HttpServletRequest request) {
+    private URI buildTargetUri(HttpServletRequest request, BookLoreUser user) {
         try {
-            String baseUrl = properties.getEffectiveBaseUrl();
+            // Use user-specific settings if user is provided, otherwise fall back to global settings
+            UserEphemeraSettings userSettings = (user != null)
+                ? userEphemeraSettingsService.getUserSettings(user.getId())
+                : null;
+            String baseUrl = (userSettings != null)
+                ? properties.getEffectiveBaseUrl(userSettings)
+                : properties.getEffectiveBaseUrl();
             String relativePath = resolveRelativePath(request);
             StringBuilder uriBuilder = new StringBuilder();
             uriBuilder.append(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl);

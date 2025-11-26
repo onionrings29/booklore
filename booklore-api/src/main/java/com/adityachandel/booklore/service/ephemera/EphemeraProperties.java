@@ -1,6 +1,7 @@
 package com.adityachandel.booklore.service.ephemera;
 
 import com.adityachandel.booklore.model.dto.settings.EphemeraSettings;
+import com.adityachandel.booklore.model.dto.settings.UserEphemeraSettings;
 import com.adityachandel.booklore.service.appsettings.AppSettingService;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -27,9 +28,28 @@ public class EphemeraProperties {
     }
 
     /**
-     * Gets the effective base URL for Ephemera, prioritizing database settings over application.yaml
+     * Gets the effective base URL for Ephemera for a specific user
      */
+    public String getEffectiveBaseUrl(UserEphemeraSettings userSettings) {
+        if (userSettings != null && userSettings.isEnabled() &&
+            userSettings.getServerIp() != null && userSettings.getServerPort() != null) {
+            return "http://" + userSettings.getServerIp() + ":" + userSettings.getServerPort();
+        }
+
+        // Fall back to global settings for backward compatibility
+        return getGlobalBaseUrl();
+    }
+
+    /**
+     * Gets the effective base URL for Ephemera, prioritizing database settings over application.yaml
+     * @deprecated Use getEffectiveBaseUrl(UserEphemeraSettings) instead for user-specific settings
+     */
+    @Deprecated
     public String getEffectiveBaseUrl() {
+        return getGlobalBaseUrl();
+    }
+
+    private String getGlobalBaseUrl() {
         EphemeraSettings settings = appSettingService.getAppSettings().getEphemeraSettings();
         if (settings != null && settings.isEnabled() && settings.getServerIp() != null && settings.getServerPort() != null) {
             return "http://" + settings.getServerIp() + ":" + settings.getServerPort();
@@ -38,8 +58,17 @@ public class EphemeraProperties {
     }
 
     /**
-     * Checks if ephemera is enabled (either in database settings or by having a baseUrl configured)
+     * Checks if ephemera is enabled for a specific user
      */
+    public boolean isEnabled(UserEphemeraSettings userSettings) {
+        return userSettings != null && userSettings.isEnabled();
+    }
+
+    /**
+     * Checks if ephemera is enabled (global settings)
+     * @deprecated Use isEnabled(UserEphemeraSettings) instead for user-specific settings
+     */
+    @Deprecated
     public boolean isEnabled() {
         EphemeraSettings settings = appSettingService.getAppSettings().getEphemeraSettings();
         return settings != null && settings.isEnabled();
@@ -47,7 +76,9 @@ public class EphemeraProperties {
 
     /**
      * Checks if the ephemera button should be shown in the UI
+     * @deprecated Use isEnabled(UserEphemeraSettings) instead for user-specific settings
      */
+    @Deprecated
     public boolean isShowButton() {
         EphemeraSettings settings = appSettingService.getAppSettings().getEphemeraSettings();
         return settings != null && settings.isShowButton();
