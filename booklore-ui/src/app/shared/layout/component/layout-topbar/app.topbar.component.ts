@@ -194,19 +194,27 @@ export class AppTopBarComponent implements OnDestroy {
 
   private subscribeToUserEphemeraSettings() {
     this.userService.userState$
-      .pipe(takeUntil(this.destroy$))
+      .pipe(
+        takeUntil(this.destroy$)
+      )
       .subscribe((userState) => {
         if (userState?.user && userState.loaded) {
-          this.ephemeraService.getSettings().subscribe({
-            next: (settings) => {
-              this.showEphemeraButton = settings?.enabled ?? false;
-            },
-            error: () => {
-              this.showEphemeraButton = false;
-            }
-          });
+          this.loadEphemeraSettings();
+        } else {
+          this.showEphemeraButton = false;
         }
       });
+  }
+
+  private loadEphemeraSettings() {
+    this.ephemeraService.getSettings().subscribe({
+      next: (settings) => {
+        this.showEphemeraButton = settings?.enabled ?? false;
+      },
+      error: () => {
+        this.showEphemeraButton = false;
+      }
+    });
   }
 
   private triggerPulseEffect() {
