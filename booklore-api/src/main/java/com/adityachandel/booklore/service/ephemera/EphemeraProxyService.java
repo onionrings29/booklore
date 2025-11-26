@@ -1,6 +1,7 @@
 package com.adityachandel.booklore.service.ephemera;
 
 import com.adityachandel.booklore.model.dto.BookLoreUser;
+import com.adityachandel.booklore.model.dto.settings.UserEphemeraSettings;
 import com.adityachandel.booklore.util.RequestUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -46,11 +47,13 @@ public class EphemeraProxyService {
     );
 
     private final EphemeraProperties properties;
+    private final UserEphemeraSettingsService userEphemeraSettingsService;
     private final HttpClient httpClient;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
-    public EphemeraProxyService(EphemeraProperties properties) {
+    public EphemeraProxyService(EphemeraProperties properties, UserEphemeraSettingsService userEphemeraSettingsService) {
         this.properties = properties;
+        this.userEphemeraSettingsService = userEphemeraSettingsService;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(properties.getConnectTimeoutMs()))
                 .build();
@@ -308,8 +311,11 @@ public class EphemeraProxyService {
     private URI buildTargetUri(HttpServletRequest request, BookLoreUser user) {
         try {
             // Use user-specific settings if user is provided, otherwise fall back to global settings
-            String baseUrl = (user != null)
-                ? properties.getEffectiveBaseUrl(user.getId())
+            UserEphemeraSettings userSettings = (user != null)
+                ? userEphemeraSettingsService.getUserSettings(user.getId())
+                : null;
+            String baseUrl = (userSettings != null)
+                ? properties.getEffectiveBaseUrl(userSettings)
                 : properties.getEffectiveBaseUrl();
             String relativePath = resolveRelativePath(request);
             StringBuilder uriBuilder = new StringBuilder();

@@ -15,7 +15,6 @@ import java.util.List;
 public class EphemeraProperties {
 
     private final AppSettingService appSettingService;
-    private final UserEphemeraSettingsService userEphemeraSettingsService;
 
     private String baseUrl = "http://10.129.20.50:8286";
     private long connectTimeoutMs = 2000;
@@ -24,16 +23,14 @@ public class EphemeraProperties {
     private List<String> allowedMethods = List.of("GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS");
     private boolean injectUserHeaders = true;
 
-    public EphemeraProperties(AppSettingService appSettingService, UserEphemeraSettingsService userEphemeraSettingsService) {
+    public EphemeraProperties(AppSettingService appSettingService) {
         this.appSettingService = appSettingService;
-        this.userEphemeraSettingsService = userEphemeraSettingsService;
     }
 
     /**
      * Gets the effective base URL for Ephemera for a specific user
      */
-    public String getEffectiveBaseUrl(Long userId) {
-        UserEphemeraSettings userSettings = userEphemeraSettingsService.getUserSettings(userId);
+    public String getEffectiveBaseUrl(UserEphemeraSettings userSettings) {
         if (userSettings != null && userSettings.isEnabled() &&
             userSettings.getServerIp() != null && userSettings.getServerPort() != null) {
             return "http://" + userSettings.getServerIp() + ":" + userSettings.getServerPort();
@@ -45,7 +42,7 @@ public class EphemeraProperties {
 
     /**
      * Gets the effective base URL for Ephemera, prioritizing database settings over application.yaml
-     * @deprecated Use getEffectiveBaseUrl(Long userId) instead for user-specific settings
+     * @deprecated Use getEffectiveBaseUrl(UserEphemeraSettings) instead for user-specific settings
      */
     @Deprecated
     public String getEffectiveBaseUrl() {
@@ -63,14 +60,13 @@ public class EphemeraProperties {
     /**
      * Checks if ephemera is enabled for a specific user
      */
-    public boolean isEnabled(Long userId) {
-        UserEphemeraSettings userSettings = userEphemeraSettingsService.getUserSettings(userId);
+    public boolean isEnabled(UserEphemeraSettings userSettings) {
         return userSettings != null && userSettings.isEnabled();
     }
 
     /**
      * Checks if ephemera is enabled (global settings)
-     * @deprecated Use isEnabled(Long userId) instead for user-specific settings
+     * @deprecated Use isEnabled(UserEphemeraSettings) instead for user-specific settings
      */
     @Deprecated
     public boolean isEnabled() {
@@ -80,7 +76,7 @@ public class EphemeraProperties {
 
     /**
      * Checks if the ephemera button should be shown in the UI
-     * @deprecated Use isEnabled(Long userId) instead for user-specific settings
+     * @deprecated Use isEnabled(UserEphemeraSettings) instead for user-specific settings
      */
     @Deprecated
     public boolean isShowButton() {
