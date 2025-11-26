@@ -1,6 +1,7 @@
 package com.adityachandel.booklore.service.ephemera;
 
 import com.adityachandel.booklore.model.dto.settings.EphemeraSettings;
+import com.adityachandel.booklore.model.dto.settings.UserEphemeraSettings;
 import com.adityachandel.booklore.service.appsettings.AppSettingService;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -14,6 +15,7 @@ import java.util.List;
 public class EphemeraProperties {
 
     private final AppSettingService appSettingService;
+    private final UserEphemeraSettingsService userEphemeraSettingsService;
 
     private String baseUrl = "http://10.129.20.50:8286";
     private long connectTimeoutMs = 2000;
@@ -22,14 +24,35 @@ public class EphemeraProperties {
     private List<String> allowedMethods = List.of("GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS");
     private boolean injectUserHeaders = true;
 
-    public EphemeraProperties(AppSettingService appSettingService) {
+    public EphemeraProperties(AppSettingService appSettingService, UserEphemeraSettingsService userEphemeraSettingsService) {
         this.appSettingService = appSettingService;
+        this.userEphemeraSettingsService = userEphemeraSettingsService;
+    }
+
+    /**
+     * Gets the effective base URL for Ephemera for a specific user
+     */
+    public String getEffectiveBaseUrl(Long userId) {
+        UserEphemeraSettings userSettings = userEphemeraSettingsService.getUserSettings(userId);
+        if (userSettings != null && userSettings.isEnabled() &&
+            userSettings.getServerIp() != null && userSettings.getServerPort() != null) {
+            return "http://" + userSettings.getServerIp() + ":" + userSettings.getServerPort();
+        }
+
+        // Fall back to global settings for backward compatibility
+        return getGlobalBaseUrl();
     }
 
     /**
      * Gets the effective base URL for Ephemera, prioritizing database settings over application.yaml
+     * @deprecated Use getEffectiveBaseUrl(Long userId) instead for user-specific settings
      */
+    @Deprecated
     public String getEffectiveBaseUrl() {
+        return getGlobalBaseUrl();
+    }
+
+    private String getGlobalBaseUrl() {
         EphemeraSettings settings = appSettingService.getAppSettings().getEphemeraSettings();
         if (settings != null && settings.isEnabled() && settings.getServerIp() != null && settings.getServerPort() != null) {
             return "http://" + settings.getServerIp() + ":" + settings.getServerPort();
@@ -38,8 +61,18 @@ public class EphemeraProperties {
     }
 
     /**
-     * Checks if ephemera is enabled (either in database settings or by having a baseUrl configured)
+     * Checks if ephemera is enabled for a specific user
      */
+    public boolean isEnabled(Long userId) {
+        UserEphemeraSettings userSettings = userEphemeraSettingsService.getUserSettings(userId);
+        return userSettings != null && userSettings.isEnabled();
+    }
+
+    /**
+     * Checks if ephemera is enabled (global settings)
+     * @deprecated Use isEnabled(Long userId) instead for user-specific settings
+     */
+    @Deprecated
     public boolean isEnabled() {
         EphemeraSettings settings = appSettingService.getAppSettings().getEphemeraSettings();
         return settings != null && settings.isEnabled();
@@ -47,7 +80,9 @@ public class EphemeraProperties {
 
     /**
      * Checks if the ephemera button should be shown in the UI
+     * @deprecated Use isEnabled(Long userId) instead for user-specific settings
      */
+    @Deprecated
     public boolean isShowButton() {
         EphemeraSettings settings = appSettingService.getAppSettings().getEphemeraSettings();
         return settings != null && settings.isShowButton();

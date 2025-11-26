@@ -3,25 +3,24 @@ import {HttpClient} from '@angular/common/http';
 import {Observable} from 'rxjs';
 import {API_CONFIG} from '../../../../../core/config/api-config';
 
-export interface EphemeraSettings {
+export interface UserEphemeraSettings {
   enabled: boolean;
   serverIp: string | null;
   serverPort: number | null;
-  showButton: boolean;
 }
 
 @Injectable({
   providedIn: 'root'
 })
 export class EphemeraService {
-  private readonly baseUrl = `${API_CONFIG.BASE_URL}/api/v1/ephemera-settings`;
+  private readonly baseUrl = `${API_CONFIG.BASE_URL}/api/v1/user-ephemera-settings`;
   private readonly http = inject(HttpClient);
 
-  getSettings(): Observable<EphemeraSettings> {
-    return this.http.get<EphemeraSettings>(`${this.baseUrl}`);
+  getSettings(): Observable<UserEphemeraSettings> {
+    return this.http.get<UserEphemeraSettings>(`${this.baseUrl}`);
   }
 
-  updateSettings(settings: EphemeraSettings): Observable<EphemeraSettings> {
-    return this.http.put<EphemeraSettings>(`${this.baseUrl}`, settings);
+  updateSettings(settings: UserEphemeraSettings): Observable<UserEphemeraSettings> {
+    return this.http.put<UserEphemeraSettings>(`${this.baseUrl}`, settings);
   }
 }

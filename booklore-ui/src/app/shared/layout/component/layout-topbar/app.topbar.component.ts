@@ -26,6 +26,7 @@ import {DuplicateFileService} from '../../../websocket/duplicate-file.service';
 import {UnifiedNotificationBoxComponent} from '../../../components/unified-notification-popover/unified-notification-popover-component';
 import {Severity, LogNotification} from '../../../websocket/model/log-notification.model';
 import {AppSettingsService} from '../../../service/app-settings.service';
+import {EphemeraService} from '../../../../features/settings/device-settings/component/ephemera-settings/ephemera.service';
 
 @Component({
   selector: 'app-topbar',
@@ -86,12 +87,13 @@ export class AppTopBarComponent implements OnDestroy {
     private bookdropFileService: BookdropFileService,
     private dialogLauncher: DialogLauncherService,
     private duplicateFileService: DuplicateFileService,
-    private appSettingsService: AppSettingsService
+    private appSettingsService: AppSettingsService,
+    private ephemeraService: EphemeraService
   ) {
     this.subscribeToMetadataProgress();
     this.subscribeToNotifications();
     this.subscribeToDuplicateFiles();
-    this.subscribeToAppSettings();
+    this.subscribeToUserEphemeraSettings();
 
     this.metadataProgressService.activeTasks$
       .pipe(takeUntil(this.destroy$))
@@ -200,11 +202,20 @@ export class AppTopBarComponent implements OnDestroy {
       });
   }
 
-  private subscribeToAppSettings() {
-    this.appSettingsService.appSettings$
+  private subscribeToUserEphemeraSettings() {
+    this.userService.userState$
       .pipe(takeUntil(this.destroy$))
-      .subscribe((settings) => {
-        this.showEphemeraButton = settings?.ephemeraSettings?.showButton ?? false;
+      .subscribe((userState) => {
+        if (userState?.user && userState.loaded) {
+          this.ephemeraService.getSettings().subscribe({
+            next: (settings) => {
+              this.showEphemeraButton = settings?.enabled ?? false;
+            },
+            error: () => {
+              this.showEphemeraButton = false;
+            }
+          });
+        }
       });
   }
 

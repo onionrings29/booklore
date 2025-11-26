@@ -61,7 +61,7 @@ public class EphemeraProxyService {
         byte[] body = readBody(request);
         validateRequest(request);
 
-        URI targetUri = buildTargetUri(request);
+        URI targetUri = buildTargetUri(request, user);
         HttpRequest outboundRequest = buildOutboundRequest(request, body, user, targetUri);
 
         try {
@@ -305,9 +305,12 @@ public class EphemeraProxyService {
         return FORWARDED_REQUEST_HEADERS.contains(lower);
     }
 
-    private URI buildTargetUri(HttpServletRequest request) {
+    private URI buildTargetUri(HttpServletRequest request, BookLoreUser user) {
         try {
-            String baseUrl = properties.getEffectiveBaseUrl();
+            // Use user-specific settings if user is provided, otherwise fall back to global settings
+            String baseUrl = (user != null)
+                ? properties.getEffectiveBaseUrl(user.getId())
+                : properties.getEffectiveBaseUrl();
             String relativePath = resolveRelativePath(request);
             StringBuilder uriBuilder = new StringBuilder();
             uriBuilder.append(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl);

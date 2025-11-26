@@ -1,6 +1,6 @@
 import {Component, inject, OnDestroy, OnInit} from '@angular/core';
 import {MessageService} from 'primeng/api';
-import {EphemeraService, EphemeraSettings} from './ephemera.service';
+import {EphemeraService, UserEphemeraSettings} from './ephemera.service';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
@@ -26,13 +26,10 @@ export class EphemeraSettingsComponent implements OnInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();
   private readonly settingsChange$ = new Subject<void>();
 
-  isAdmin = false;
-
-  ephemeraSettings: EphemeraSettings = {
+  ephemeraSettings: UserEphemeraSettings = {
     enabled: false,
     serverIp: null,
-    serverPort: null,
-    showButton: false
+    serverPort: null
   };
 
   ngOnInit() {
@@ -50,27 +47,18 @@ export class EphemeraSettingsComponent implements OnInit, OnDestroy {
   }
 
   private setupUserStateSubscription() {
-    let prevIsAdmin = false;
     this.userService.userState$.pipe(
       filter(userState => !!userState?.user && userState.loaded),
+      take(1),
       takeUntil(this.destroy$)
-    ).subscribe(userState => {
-      const currIsAdmin = userState.user?.permissions.admin ?? false;
-
-      if (currIsAdmin && !prevIsAdmin) {
-        this.isAdmin = true;
-        this.loadSettings();
-      } else {
-        this.isAdmin = currIsAdmin;
-      }
-
-      prevIsAdmin = currIsAdmin;
+    ).subscribe(() => {
+      this.loadSettings();
     });
   }
 
   private loadSettings() {
     this.ephemeraService.getSettings().subscribe({
-      next: (settings: EphemeraSettings) => {
+      next: (settings: UserEphemeraSettings) => {
         this.ephemeraSettings = settings;
       },
       error: () => {
