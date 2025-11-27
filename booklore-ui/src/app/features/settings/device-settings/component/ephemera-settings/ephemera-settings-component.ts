@@ -49,7 +49,6 @@ export class EphemeraSettingsComponent implements OnInit, OnDestroy {
   private setupUserStateSubscription() {
     this.userService.userState$.pipe(
       filter(userState => !!userState?.user && userState.loaded),
-      take(1),
       takeUntil(this.destroy$)
     ).subscribe(() => {
       this.loadSettings();
@@ -95,7 +94,7 @@ export class EphemeraSettingsComponent implements OnInit, OnDestroy {
         this.messageService.add({
           severity: 'success',
           summary: 'Settings Saved',
-          detail: 'Ephemera settings updated successfully. The Ephemera button is now ' + (this.ephemeraSettings.enabled ? 'visible' : 'hidden') + ' in the navigation bar.'
+          detail: 'Ephemera settings updated successfully.'
         });
       },
       error: () => {
