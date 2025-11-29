@@ -12,6 +12,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -82,5 +90,59 @@ public class UserEphemeraSettingsService {
                 .serverIp(entity.getServerIp())
                 .serverPort(entity.getServerPort())
                 .build();
+    }
+
+    /**
+     * Test connection to the user's configured Ephemera server
+     */
+    public Map<String, Object> testConnection() {
+        BookLoreUser user = authenticationService.getAuthenticatedUser();
+        UserEphemeraSettings settings = getCurrentUserSettings();
+
+        Map<String, Object> result = new HashMap<>();
+
+        if (settings.getServerIp() == null || settings.getServerIp().isBlank() || settings.getServerPort() == null) {
+            result.put("success", false);
+            result.put("message", "Server IP and port must be configured");
+            return result;
+        }
+
+        String healthUrl = "http://" + settings.getServerIp() + ":" + settings.getServerPort() + "/health";
+
+        try {
+            HttpClient client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(5))
+                    .build();
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(healthUrl))
+                    .timeout(Duration.ofSeconds(10))
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 200) {
+                result.put("success", true);
+                result.put("message", "Successfully connected to Ephemera server");
+                result.put("statusCode", response.statusCode());
+                result.put("response", response.body());
+                log.info("Ephemera connection test successful for user {} to {}:{}",
+                        user.getId(), settings.getServerIp(), settings.getServerPort());
+            } else {
+                result.put("success", false);
+                result.put("message", "Server responded with status code: " + response.statusCode());
+                result.put("statusCode", response.statusCode());
+                log.warn("Ephemera connection test failed for user {} - status code: {}",
+                        user.getId(), response.statusCode());
+            }
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("message", "Failed to connect to Ephemera server: " + e.getMessage());
+            log.error("Ephemera connection test failed for user {} to {}:{}",
+                    user.getId(), settings.getServerIp(), settings.getServerPort(), e);
+        }
+
+        return result;
     }
 }

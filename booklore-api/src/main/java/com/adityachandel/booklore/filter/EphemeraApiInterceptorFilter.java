@@ -52,6 +52,7 @@ public class EphemeraApiInterceptorFilter extends OncePerRequestFilter {
             "/api/v1/settings",          // App settings
             "/api/v1/public-settings",   // Public settings
             "/api/v1/ephemera-settings", // Ephemera configuration (admin)
+            "/api/v1/user-ephemera-settings", // User-specific ephemera settings
             "/api/v1/tasks",             // Background tasks
             "/api/v1/background",        // Background uploads
             "/api/v1/bookdrop",          // Bookdrop file management

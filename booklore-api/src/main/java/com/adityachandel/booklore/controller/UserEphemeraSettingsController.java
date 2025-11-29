@@ -34,4 +34,12 @@ public class UserEphemeraSettingsController {
         UserEphemeraSettings updated = service.updateSettings(settings);
         return ResponseEntity.ok(updated);
     }
+
+    @Operation(summary = "Test Ephemera connection", description = "Test the connection to the configured Ephemera server.")
+    @ApiResponse(responseCode = "200", description = "Connection test completed")
+    @PostMapping("/test-connection")
+    public ResponseEntity<java.util.Map<String, Object>> testConnection() {
+        java.util.Map<String, Object> result = service.testConnection();
+        return ResponseEntity.ok(result);
+    }
 }
