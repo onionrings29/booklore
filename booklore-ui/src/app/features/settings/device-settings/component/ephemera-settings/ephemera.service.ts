@@ -23,4 +23,8 @@ export class EphemeraService {
   updateSettings(settings: UserEphemeraSettings): Observable<UserEphemeraSettings> {
     return this.http.put<UserEphemeraSettings>(`${this.baseUrl}`, settings);
   }
+
+  testConnection(): Observable<{success: boolean, message: string, statusCode?: number, response?: string}> {
+    return this.http.post<{success: boolean, message: string, statusCode?: number, response?: string}>(`${this.baseUrl}/test-connection`, {});
+  }
 }

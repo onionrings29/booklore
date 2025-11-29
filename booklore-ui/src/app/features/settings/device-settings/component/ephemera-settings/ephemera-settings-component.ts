@@ -8,7 +8,6 @@ import {UserService} from '../../../user-management/user.service';
 import {Subject} from 'rxjs';
 import {debounceTime, filter, take, takeUntil} from 'rxjs/operators';
 import {InputNumber} from 'primeng/inputnumber';
-import {HttpClient} from '@angular/common/http';
 
 @Component({
   selector: 'app-ephemera-settings-component',
@@ -22,7 +21,6 @@ export class EphemeraSettingsComponent implements OnInit, OnDestroy {
   private ephemeraService = inject(EphemeraService);
   private messageService = inject(MessageService);
   protected userService = inject(UserService);
-  private http = inject(HttpClient);
 
   private readonly destroy$ = new Subject<void>();
   private readonly settingsChange$ = new Subject<void>();
@@ -109,32 +107,43 @@ export class EphemeraSettingsComponent implements OnInit, OnDestroy {
     }
 
     this.testingConnection = true;
-    const healthUrl = `http://${this.ephemeraSettings.serverIp}:${this.ephemeraSettings.serverPort}/health`;
 
-    this.http.get<{status: string, timestamp: string, uptime: number}>(healthUrl).subscribe({
-      next: (response) => {
-        if (response.status === 'ok') {
+    this.ephemeraService.testConnection().subscribe({
+      next: (result) => {
+        this.testingConnection = false;
+        if (result.success) {
+          // Try to parse the response to get uptime
+          let uptimeMessage = '';
+          if (result.response) {
+            try {
+              const healthData = JSON.parse(result.response);
+              if (healthData.uptime) {
+                uptimeMessage = ` Uptime: ${Math.floor(healthData.uptime / 1000)}s`;
+              }
+            } catch (e) {
+              // Ignore parse errors
+            }
+          }
           this.messageService.add({
             severity: 'success',
             summary: 'Connection Successful',
-            detail: `Successfully connected to Ephemera server. Uptime: ${Math.floor(response.uptime / 1000)}s`
+            detail: `Successfully connected to Ephemera server.${uptimeMessage}`
           });
         } else {
           this.messageService.add({
-            severity: 'warn',
-            summary: 'Unexpected Response',
-            detail: `Server responded but status is: ${response.status}`
+            severity: 'error',
+            summary: 'Connection Failed',
+            detail: result.message
           });
         }
-        this.testingConnection = false;
       },
       error: (error) => {
+        this.testingConnection = false;
         this.messageService.add({
           severity: 'error',
           summary: 'Connection Failed',
-          detail: `Failed to connect to Ephemera server at ${this.ephemeraSettings.serverIp}:${this.ephemeraSettings.serverPort}. Please check your server address and ensure the server is running.`
+          detail: 'Failed to test connection. Please ensure the server address and port are correct.'
         });
-        this.testingConnection = false;
       }
     });
   }
