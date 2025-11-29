@@ -25,72 +25,70 @@
         <form #ephemeraForm="ngForm">
           <div class="setting-item">
             <div class="setting-info">
-              <div class="setting-label-row">
-                <label class="setting-label">Enable Ephemera Integration</label>
-                <p-toggle-switch
-                  id="enabled"
-                  name="enabled"
-                  [(ngModel)]="ephemeraSettings.enabled"
-                  (ngModelChange)="onToggleChange()">
-                </p-toggle-switch>
-              </div>
+              <label class="setting-label">Server Address</label>
               <p class="setting-description">
-                Enable integration with your Ephemera book processing service. When enabled, an Ephemera button will appear in the top navigation bar for quick access.
+                The IP address or hostname of your Ephemera server instance.
               </p>
+            </div>
+            <div class="setting-control">
+              <input
+                pInputText
+                id="serverIp"
+                name="serverIp"
+                [(ngModel)]="ephemeraSettings.serverIp"
+                (ngModelChange)="onInputChange()"
+                placeholder="e.g., 192.168.1.100 or ephemera.example.com"
+                class="w-full"
+              />
             </div>
           </div>
 
-          @if (ephemeraSettings.enabled) {
-            <div class="setting-item">
-              <div class="setting-info">
-                <label class="setting-label">Server Address</label>
-                <p class="setting-description">
-                  The IP address or hostname of your Ephemera server instance.
-                </p>
-              </div>
-              <div class="setting-control">
-                <input
-                  pInputText
-                  id="serverIp"
-                  name="serverIp"
-                  [(ngModel)]="ephemeraSettings.serverIp"
-                  (ngModelChange)="onInputChange()"
-                  placeholder="e.g., 192.168.1.100 or ephemera.example.com"
-                  class="w-full"
-                  required
-                />
-              </div>
-            </div>
-
-            <div class="setting-item">
-              <div class="setting-info">
-                <label class="setting-label">Server Port</label>
-                <p class="setting-description">
-                  The port number where your Ephemera instance is running (typically 8286).
-                </p>
-              </div>
-              <div class="setting-control">
-                <p-inputnumber
-                  id="serverPort"
-                  name="serverPort"
-                  [(ngModel)]="ephemeraSettings.serverPort"
-                  (ngModelChange)="onInputChange()"
-                  [min]="1"
-                  [max]="65535"
-                  placeholder="8286"
-                  class="w-full"
-                  required>
-                </p-inputnumber>
-              </div>
-            </div>
-
-            <div class="info-banner">
-              <i class="pi pi-info-circle"></i>
-              <p>
-                Your Ephemera instance must be accessible from this Booklore server. Ensure your firewall settings allow the connection on the specified port.
+          <div class="setting-item">
+            <div class="setting-info">
+              <label class="setting-label">Server Port</label>
+              <p class="setting-description">
+                The port number where your Ephemera instance is running (typically 8286).
               </p>
             </div>
-          }
+            <div class="setting-control">
+              <p-inputnumber
+                id="serverPort"
+                name="serverPort"
+                [(ngModel)]="ephemeraSettings.serverPort"
+                (ngModelChange)="onInputChange()"
+                [min]="1"
+                [max]="65535"
+                placeholder="8286"
+                class="w-full">
+              </p-inputnumber>
+            </div>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-info">
+              <label class="setting-label">Connection Test</label>
+              <p class="setting-description">
+                Test your connection to the Ephemera server to verify it's accessible.
+              </p>
+            </div>
+            <div class="setting-control">
+              <p-button
+                label="Test Connection"
+                icon="pi pi-check-circle"
+                (click)="testConnection()"
+                [disabled]="!ephemeraSettings.serverIp || !ephemeraSettings.serverPort || testingConnection"
+                [loading]="testingConnection"
+                severity="secondary"
+              />
+            </div>
+          </div>
+
+          <div class="info-banner">
+            <i class="pi pi-info-circle"></i>
+            <p>
+              Your Ephemera instance must be accessible from this Booklore server. Ensure your firewall settings allow the connection on the specified port. The Ephemera button in the navigation bar is always visible - it will guide you to configure settings if not yet set up.
+            </p>
+          </div>
         </form>
       </div>
     </div>

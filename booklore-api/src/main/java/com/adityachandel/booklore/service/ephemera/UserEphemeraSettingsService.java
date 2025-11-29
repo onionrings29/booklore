@@ -48,9 +48,13 @@ public class UserEphemeraSettingsService {
     public UserEphemeraSettings updateSettings(UserEphemeraSettings settings) {
         BookLoreUser user = authenticationService.getAuthenticatedUser();
 
+        // Auto-enable when both serverIp and serverPort are provided
+        boolean shouldEnable = settings.getServerIp() != null && !settings.getServerIp().isBlank()
+                && settings.getServerPort() != null;
+
         UserEphemeraSettingsEntity entity = repository.findByUserId(user.getId())
                 .map(existing -> {
-                    existing.setEnabled(settings.isEnabled());
+                    existing.setEnabled(shouldEnable);
                     existing.setServerIp(settings.getServerIp());
                     existing.setServerPort(settings.getServerPort());
                     return existing;
@@ -60,7 +64,7 @@ public class UserEphemeraSettingsService {
                             .orElseThrow(() -> new RuntimeException("User not found: " + user.getId()));
                     return UserEphemeraSettingsEntity.builder()
                             .user(userEntity)
-                            .enabled(settings.isEnabled())
+                            .enabled(shouldEnable)
                             .serverIp(settings.getServerIp())
                             .serverPort(settings.getServerPort())
                             .build();
@@ -68,7 +72,7 @@ public class UserEphemeraSettingsService {
 
         entity = repository.save(entity);
         log.info("Updated ephemera settings for user {} - enabled: {}, serverIp: {}, serverPort: {}",
-                user.getId(), settings.isEnabled(), settings.getServerIp(), settings.getServerPort());
+                user.getId(), shouldEnable, settings.getServerIp(), settings.getServerPort());
         return mapToDto(entity);
     }
 

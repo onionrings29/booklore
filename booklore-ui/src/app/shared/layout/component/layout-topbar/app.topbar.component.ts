@@ -26,7 +26,6 @@ import {DuplicateFileService} from '../../../websocket/duplicate-file.service';
 import {UnifiedNotificationBoxComponent} from '../../../components/unified-notification-popover/unified-notification-popover-component';
 import {Severity, LogNotification} from '../../../websocket/model/log-notification.model';
 import {AppSettingsService} from '../../../service/app-settings.service';
-import {EphemeraService} from '../../../../features/settings/device-settings/component/ephemera-settings/ephemera.service';
 
 @Component({
   selector: 'app-topbar',
@@ -66,7 +65,6 @@ export class AppTopBarComponent implements OnDestroy {
   hasAnyTasks = false;
   hasPendingBookdropFiles = false;
   hasDuplicateFiles = false;
-  showEphemeraButton = false;
 
   private eventTimer: any;
   private destroy$ = new Subject<void>();
@@ -86,13 +84,11 @@ export class AppTopBarComponent implements OnDestroy {
     private bookdropFileService: BookdropFileService,
     private dialogLauncher: DialogLauncherService,
     private duplicateFileService: DuplicateFileService,
-    private appSettingsService: AppSettingsService,
-    private ephemeraService: EphemeraService
+    private appSettingsService: AppSettingsService
   ) {
     this.subscribeToMetadataProgress();
     this.subscribeToNotifications();
     this.subscribeToDuplicateFiles();
-    this.subscribeToUserEphemeraSettings();
 
     this.metadataProgressService.activeTasks$
       .pipe(takeUntil(this.destroy$))
@@ -190,31 +186,6 @@ export class AppTopBarComponent implements OnDestroy {
           this.triggerPulseEffect();
         }
       });
-  }
-
-  private subscribeToUserEphemeraSettings() {
-    this.userService.userState$
-      .pipe(
-        takeUntil(this.destroy$)
-      )
-      .subscribe((userState) => {
-        if (userState?.user && userState.loaded) {
-          this.loadEphemeraSettings();
-        } else {
-          this.showEphemeraButton = false;
-        }
-      });
-  }
-
-  private loadEphemeraSettings() {
-    this.ephemeraService.getSettings().subscribe({
-      next: (settings) => {
-        this.showEphemeraButton = settings?.enabled ?? false;
-      },
-      error: () => {
-        this.showEphemeraButton = false;
-      }
-    });
   }
 
   private triggerPulseEffect() {
