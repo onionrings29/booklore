@@ -7,21 +7,22 @@ import {InputText} from 'primeng/inputtext';
 import {UserService} from '../../../user-management/user.service';
 import {Subject} from 'rxjs';
 import {debounceTime, filter, take, takeUntil} from 'rxjs/operators';
-import {ToggleSwitch} from 'primeng/toggleswitch';
 import {InputNumber} from 'primeng/inputnumber';
+import {HttpClient} from '@angular/common/http';
 
 @Component({
   selector: 'app-ephemera-settings-component',
   standalone: true,
   templateUrl: './ephemera-settings-component.html',
   styleUrl: './ephemera-settings-component.scss',
-  imports: [FormsModule, Button, InputText, ToggleSwitch, InputNumber],
+  imports: [FormsModule, Button, InputText, InputNumber],
   providers: [MessageService]
 })
 export class EphemeraSettingsComponent implements OnInit, OnDestroy {
   private ephemeraService = inject(EphemeraService);
   private messageService = inject(MessageService);
   protected userService = inject(UserService);
+  private http = inject(HttpClient);
 
   private readonly destroy$ = new Subject<void>();
   private readonly settingsChange$ = new Subject<void>();
@@ -31,6 +32,8 @@ export class EphemeraSettingsComponent implements OnInit, OnDestroy {
     serverIp: null,
     serverPort: null
   };
+
+  testingConnection = false;
 
   ngOnInit() {
     this.setupDebouncing();
@@ -67,35 +70,22 @@ export class EphemeraSettingsComponent implements OnInit, OnDestroy {
     });
   }
 
-  onToggleChange() {
-    if (!this.ephemeraSettings.enabled) {
-      // Clear server details when disabled
-      this.ephemeraSettings.serverIp = null;
-      this.ephemeraSettings.serverPort = null;
-    }
-    this.settingsChange$.next();
-  }
-
   onInputChange() {
+    // Auto-enable when both IP and port are provided
+    this.ephemeraSettings.enabled = !!(this.ephemeraSettings.serverIp && this.ephemeraSettings.serverPort);
     this.settingsChange$.next();
   }
 
   saveSettings() {
-    if (this.ephemeraSettings.enabled && (!this.ephemeraSettings.serverIp || !this.ephemeraSettings.serverPort)) {
-      this.messageService.add({
-        severity: 'warn',
-        summary: 'Incomplete Configuration',
-        detail: 'Please provide both server address and port'
-      });
-      return;
-    }
+    // Auto-enable based on valid IP and port
+    this.ephemeraSettings.enabled = !!(this.ephemeraSettings.serverIp && this.ephemeraSettings.serverPort);
 
     this.ephemeraService.updateSettings(this.ephemeraSettings).subscribe({
       next: () => {
         this.messageService.add({
           severity: 'success',
           summary: 'Settings Saved',
-          detail: 'Ephemera settings updated successfully. The Ephemera button is now ' + (this.ephemeraSettings.enabled ? 'visible' : 'hidden') + ' in the navigation bar.'
+          detail: 'Ephemera settings updated successfully.'
         });
       },
       error: () => {
@@ -104,6 +94,47 @@ export class EphemeraSettingsComponent implements OnInit, OnDestroy {
           summary: 'Save Failed',
           detail: 'Failed to save Ephemera settings'
         });
+      }
+    });
+  }
+
+  testConnection() {
+    if (!this.ephemeraSettings.serverIp || !this.ephemeraSettings.serverPort) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'Missing Configuration',
+        detail: 'Please provide both server address and port before testing'
+      });
+      return;
+    }
+
+    this.testingConnection = true;
+    const healthUrl = `http://${this.ephemeraSettings.serverIp}:${this.ephemeraSettings.serverPort}/health`;
+
+    this.http.get<{status: string, timestamp: string, uptime: number}>(healthUrl).subscribe({
+      next: (response) => {
+        if (response.status === 'ok') {
+          this.messageService.add({
+            severity: 'success',
+            summary: 'Connection Successful',
+            detail: `Successfully connected to Ephemera server. Uptime: ${Math.floor(response.uptime / 1000)}s`
+          });
+        } else {
+          this.messageService.add({
+            severity: 'warn',
+            summary: 'Unexpected Response',
+            detail: `Server responded but status is: ${response.status}`
+          });
+        }
+        this.testingConnection = false;
+      },
+      error: (error) => {
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Connection Failed',
+          detail: `Failed to connect to Ephemera server at ${this.ephemeraSettings.serverIp}:${this.ephemeraSettings.serverPort}. Please check your server address and ensure the server is running.`
+        });
+        this.testingConnection = false;
       }
     });
   }

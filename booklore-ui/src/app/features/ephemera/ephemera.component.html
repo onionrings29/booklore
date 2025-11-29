@@ -26,7 +26,7 @@
     <!-- Iframe Container -->
     <div class="relative flex-1">
       <iframe
-        *ngIf="iframeUrl"
+        *ngIf="iframeUrl && isConfigured"
         class="absolute inset-0 h-full w-full border-0"
         [src]="iframeUrl"
         title="Ephemera Book Downloader"
@@ -34,10 +34,27 @@
       ></iframe>
 
       <!-- Loading State -->
-      <div *ngIf="isLoading" class="absolute inset-0 flex items-center justify-center bg-[var(--card-background)] z-50">
+      <div *ngIf="isLoading && isConfigured" class="absolute inset-0 flex items-center justify-center bg-[var(--card-background)] z-50">
         <div class="flex flex-col items-center space-y-3">
           <p-progressSpinner class="w-8 h-8" strokeWidth="4"/>
           <span class="text-[var(--p-text-muted-color)]">Connecting to Ephemera...</span>
+        </div>
+      </div>
+
+      <!-- Not Configured State -->
+      <div *ngIf="!isConfigured && !isLoading" class="absolute inset-0 flex items-center justify-center bg-[var(--card-background)]">
+        <div class="flex flex-col items-center space-y-4 max-w-md text-center p-6">
+          <i class="pi pi-cog text-6xl text-[var(--p-text-muted-color)]"></i>
+          <h3 class="text-2xl font-semibold">Configure Ephemera</h3>
+          <p class="text-[var(--p-text-muted-color)]">
+            Ephemera integration is not configured yet. Please configure your Ephemera server connection in settings to start using this feature.
+          </p>
+          <p-button
+            label="Go to Settings"
+            icon="pi pi-cog"
+            (click)="navigateToSettings()"
+            severity="primary"
+          />
         </div>
       </div>
     </div>
