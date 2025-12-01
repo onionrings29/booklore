@@ -4,9 +4,7 @@ import com.adityachandel.booklore.service.ephemera.EphemeraProperties;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletRequestWrapper;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
@@ -162,9 +160,22 @@ public class EphemeraApiInterceptorFilter extends OncePerRequestFilter {
      * Proxies the request to the Ephemera backend
      */
     private void proxyToEphemera(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        URI targetUri = null;
         try {
-            // Build target URI for Ephemera backend
-            String baseUrl = properties.getEffectiveBaseUrl();
+            // CRITICAL: Fetch base URL BEFORE making HTTP call to ensure any database access completes
+            // This prevents holding database connections during long-running HTTP requests
+            // Use null for userSettings since filter doesn't have user context (uses global settings)
+            String baseUrl = properties.getEffectiveBaseUrl((com.adityachandel.booklore.model.dto.settings.UserEphemeraSettings) null);
+            
+            // Validate that ephemera is properly configured
+            if (baseUrl == null || baseUrl.isBlank()) {
+                log.warn("Ephemera is not configured, rejecting proxy request: {}", request.getRequestURI());
+                response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+                response.setContentType("application/json");
+                response.getWriter().write("{\"error\":\"Ephemera is not configured. Please configure your Ephemera server settings.\"}");
+                return;
+            }
+
             String path = request.getRequestURI();
             StringBuilder uriBuilder = new StringBuilder();
             uriBuilder.append(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl);
@@ -172,10 +183,10 @@ public class EphemeraApiInterceptorFilter extends OncePerRequestFilter {
             if (request.getQueryString() != null && !request.getQueryString().isBlank()) {
                 uriBuilder.append("?").append(request.getQueryString());
             }
-            URI targetUri = new URI(uriBuilder.toString());
+            targetUri = new URI(uriBuilder.toString());
 
-            // Read request body
-            byte[] body = request.getInputStream().readAllBytes();
+            // Read request body with size limit (10MB default)
+            byte[] body = readRequestBodyWithLimit(request, 10 * 1024 * 1024);
 
             // Build outbound request
             HttpRequest.BodyPublisher publisher = body.length == 0
@@ -218,11 +229,48 @@ public class EphemeraApiInterceptorFilter extends OncePerRequestFilter {
 
             log.info("Successfully proxied Ephemera API call: {} (status: {})", request.getRequestURI(), ephemeraResponse.statusCode());
 
+        } catch (java.net.http.HttpTimeoutException e) {
+            log.error("Ephemera request timeout: {} -> {}", request.getRequestURI(), targetUri != null ? targetUri : "unknown", e);
+            response.setStatus(HttpServletResponse.SC_GATEWAY_TIMEOUT);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"error\":\"Ephemera service request timed out\"}");
+        } catch (java.net.ConnectException e) {
+            log.error("Failed to connect to Ephemera service: {} -> {}", request.getRequestURI(), targetUri != null ? targetUri : "unknown", e);
+            response.setStatus(HttpServletResponse.SC_BAD_GATEWAY);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"error\":\"Failed to connect to Ephemera service\"}");
+        } catch (java.net.URISyntaxException e) {
+            log.error("Invalid Ephemera target URI: {}", request.getRequestURI(), e);
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"error\":\"Invalid Ephemera target URI\"}");
         } catch (Exception e) {
             log.error("Failed to proxy Ephemera API call: {}", request.getRequestURI(), e);
             response.setStatus(HttpServletResponse.SC_BAD_GATEWAY);
             response.setContentType("application/json");
-            response.getWriter().write("{\"error\":\"Failed to reach Ephemera service\"}");
+            response.getWriter().write("{\"error\":\"Failed to reach Ephemera service: " + e.getMessage() + "\"}");
+        }
+    }
+
+    /**
+     * Reads request body with size limit to prevent memory exhaustion
+     */
+    private byte[] readRequestBodyWithLimit(HttpServletRequest request, int maxSize) throws IOException {
+        try (java.io.InputStream inputStream = request.getInputStream()) {
+            java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+            byte[] data = new byte[8192];
+            int bytesRead;
+            int totalBytes = 0;
+
+            while ((bytesRead = inputStream.read(data, 0, Math.min(data.length, maxSize - totalBytes))) != -1) {
+                totalBytes += bytesRead;
+                if (totalBytes > maxSize) {
+                    throw new IOException("Request body size exceeds maximum allowed size of " + maxSize + " bytes");
+                }
+                buffer.write(data, 0, bytesRead);
+            }
+
+            return buffer.toByteArray();
         }
     }
 }

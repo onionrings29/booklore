@@ -64,7 +64,13 @@ public class EphemeraProxyService {
         byte[] body = readBody(request);
         validateRequest(request);
 
-        URI targetUri = buildTargetUri(request, user);
+        // CRITICAL: Fetch user settings BEFORE making HTTP call to ensure transaction closes
+        // This prevents holding database connections during long-running HTTP requests
+        UserEphemeraSettings userSettings = (user != null)
+                ? userEphemeraSettingsService.getUserSettings(user.getId())
+                : null;
+
+        URI targetUri = buildTargetUri(request, user, userSettings);
         HttpRequest outboundRequest = buildOutboundRequest(request, body, user, targetUri);
 
         try {
@@ -85,10 +91,16 @@ public class EphemeraProxyService {
             return ResponseEntity.status(response.statusCode()).headers(headers).body(responseBody);
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
-            log.error("Ephemera proxy interrupted", ie);
+            log.error("Ephemera proxy interrupted for URI: {}", targetUri, ie);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Ephemera proxy interrupted", ie);
+        } catch (java.net.http.HttpTimeoutException e) {
+            log.error("Ephemera request timeout for URI: {}", targetUri, e);
+            throw new ResponseStatusException(HttpStatus.GATEWAY_TIMEOUT, "Ephemera service request timed out", e);
+        } catch (java.net.ConnectException e) {
+            log.error("Failed to connect to Ephemera service at URI: {}", targetUri, e);
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Failed to connect to Ephemera service", e);
         } catch (IOException e) {
-            log.error("Failed to proxy Ephemera request", e);
+            log.error("Failed to proxy Ephemera request to URI: {}", targetUri, e);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Failed to reach Ephemera service", e);
         }
     }
@@ -308,15 +320,11 @@ public class EphemeraProxyService {
         return FORWARDED_REQUEST_HEADERS.contains(lower);
     }
 
-    private URI buildTargetUri(HttpServletRequest request, BookLoreUser user) {
+    private URI buildTargetUri(HttpServletRequest request, BookLoreUser user, UserEphemeraSettings userSettings) {
         try {
-            // Use user-specific settings if user is provided, otherwise fall back to global settings
-            UserEphemeraSettings userSettings = (user != null)
-                ? userEphemeraSettingsService.getUserSettings(user.getId())
-                : null;
-            String baseUrl = (userSettings != null)
-                ? properties.getEffectiveBaseUrl(userSettings)
-                : properties.getEffectiveBaseUrl();
+            // Use user-specific settings if provided, otherwise fall back to global settings
+            // getEffectiveBaseUrl() handles null userSettings by falling back to global settings
+            String baseUrl = properties.getEffectiveBaseUrl(userSettings);
 
             // Validate that ephemera is properly configured
             if (baseUrl == null || baseUrl.isBlank()) {
@@ -347,11 +355,34 @@ public class EphemeraProxyService {
 
     private byte[] readBody(HttpServletRequest request) {
         try {
-            byte[] bytes = request.getInputStream().readAllBytes();
-            return bytes.length == 0 ? null : bytes;
+            // Read request body with size limit (10MB default) to prevent memory exhaustion
+            return readRequestBodyWithLimit(request, 10 * 1024 * 1024);
         } catch (IOException e) {
             log.warn("Unable to read Ephemera request body, sending empty body", e);
             return null;
+        }
+    }
+
+    /**
+     * Reads request body with size limit to prevent memory exhaustion
+     */
+    private byte[] readRequestBodyWithLimit(HttpServletRequest request, int maxSize) throws IOException {
+        try (java.io.InputStream inputStream = request.getInputStream()) {
+            java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+            byte[] data = new byte[8192];
+            int bytesRead;
+            int totalBytes = 0;
+
+            while ((bytesRead = inputStream.read(data, 0, Math.min(data.length, maxSize - totalBytes))) != -1) {
+                totalBytes += bytesRead;
+                if (totalBytes > maxSize) {
+                    throw new IOException("Request body size exceeds maximum allowed size of " + maxSize + " bytes");
+                }
+                buffer.write(data, 0, bytesRead);
+            }
+
+            byte[] result = buffer.toByteArray();
+            return result.length == 0 ? null : result;
         }
     }
 }
