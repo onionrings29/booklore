@@ -182,21 +182,26 @@ public class UserService {
 
     /**
      * Finds a user by ID for authentication purposes.
+     * Uses lightweight query that EXCLUDES eager-loaded libraries and settings.
      * Uses read-only transaction to minimize connection hold time.
      * Cached to avoid repeated DB hits during authentication filter chain.
+     *
+     * CRITICAL: This method uses findByIdForAuthentication() which skips EAGER relationships.
+     * Regular findById() loads libraries + settings which is expensive for concurrent auth requests.
      */
     @Transactional(readOnly = true)
     @Cacheable(value = "userAuthCache", key = "#userId", unless = "#result == null")
     public BookLoreUserEntity findUserForAuthentication(Long userId) {
-        return userRepository.findById(userId).orElse(null);
+        return userRepository.findByIdForAuthentication(userId).orElse(null);
     }
 
     /**
      * Finds a user by username for OIDC authentication.
+     * Uses lightweight query that EXCLUDES eager-loaded libraries and settings.
      * Uses read-only transaction to minimize connection hold time.
      */
     @Transactional(readOnly = true)
     public BookLoreUserEntity findUserByUsernameForAuthentication(String username) {
-        return userRepository.findByUsername(username).orElse(null);
+        return userRepository.findByUsernameForAuthentication(username).orElse(null);
     }
 }
