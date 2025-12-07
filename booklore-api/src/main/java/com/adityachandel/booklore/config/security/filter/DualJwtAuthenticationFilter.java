@@ -12,6 +12,7 @@ import com.adityachandel.booklore.model.entity.BookLoreUserEntity;
 import com.adityachandel.booklore.repository.UserRepository;
 import com.adityachandel.booklore.service.appsettings.AppSettingService;
 import com.adityachandel.booklore.service.user.UserProvisioningService;
+import com.adityachandel.booklore.service.user.UserService;
 import com.nimbusds.jwt.JWTClaimsSet;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -41,6 +42,7 @@ public class DualJwtAuthenticationFilter extends OncePerRequestFilter {
     private final UserRepository userRepository;
     private final AppSettingService appSettingService;
     private final UserProvisioningService userProvisioningService;
+    private final UserService userService;
     private static final ConcurrentMap<String, Object> userLocks = new ConcurrentHashMap<>();
     private final DynamicOidcJwtProcessor dynamicOidcJwtProcessor;
 
@@ -89,7 +91,10 @@ public class DualJwtAuthenticationFilter extends OncePerRequestFilter {
 
     private void authenticateLocalUser(String token, HttpServletRequest request) {
         Long userId = jwtUtils.extractUserId(token);
-        BookLoreUserEntity entity = userRepository.findById(userId).orElseThrow(() -> new UsernameNotFoundException("User not found with ID: " + userId));
+        BookLoreUserEntity entity = userService.findUserForAuthentication(userId);
+        if (entity == null) {
+            throw new UsernameNotFoundException("User not found with ID: " + userId);
+        }
         BookLoreUser user = bookLoreUserTransformer.toDTO(entity);
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(user, null, null);
         authentication.setDetails(new UserAuthenticationDetails(request, user.getId()));
@@ -114,25 +119,25 @@ public class DualJwtAuthenticationFilter extends OncePerRequestFilter {
             OidcAutoProvisionDetails provisionDetails = appSettingService.getAppSettings().getOidcAutoProvisionDetails();
             boolean autoProvision = provisionDetails != null && provisionDetails.isEnableAutoProvisioning();
 
-            BookLoreUserEntity entity = userRepository.findByUsername(username)
-                    .orElseGet(() -> {
-                        if (!autoProvision) {
-                            log.warn("User '{}' not found and auto-provisioning is disabled.", username);
-                            throw ApiError.GENERIC_UNAUTHORIZED.createException("User not found and auto-provisioning is disabled.");
+            BookLoreUserEntity entity = userService.findUserByUsernameForAuthentication(username);
+            if (entity == null) {
+                if (!autoProvision) {
+                    log.warn("User '{}' not found and auto-provisioning is disabled.", username);
+                    throw ApiError.GENERIC_UNAUTHORIZED.createException("User not found and auto-provisioning is disabled.");
+                }
+                Object lock = userLocks.computeIfAbsent(username, k -> new Object());
+                try {
+                    synchronized (lock) {
+                        entity = userService.findUserByUsernameForAuthentication(username);
+                        if (entity == null) {
+                            log.info("Provisioning new OIDC user '{}'", username);
+                            entity = userProvisioningService.provisionOidcUser(username, email, name, provisionDetails);
                         }
-                        Object lock = userLocks.computeIfAbsent(username, k -> new Object());
-                        try {
-                            synchronized (lock) {
-                                return userRepository.findByUsername(username)
-                                        .orElseGet(() -> {
-                                            log.info("Provisioning new OIDC user '{}'", username);
-                                            return userProvisioningService.provisionOidcUser(username, email, name, provisionDetails);
-                                        });
-                            }
-                        } finally {
-                            userLocks.remove(username);
-                        }
-                    });
+                    }
+                } finally {
+                    userLocks.remove(username);
+                }
+            }
 
             BookLoreUser user = bookLoreUserTransformer.toDTO(entity);
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(user, null, null);

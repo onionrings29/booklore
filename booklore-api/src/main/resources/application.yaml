@@ -43,9 +43,10 @@ spring:
     hikari:
       max-lifetime: 580000         # 9.6 minutes (avoid DB-side connection cuts)
       connection-test-query: SELECT 1
-      maximum-pool-size: 10        # Allows bursts
-      minimum-idle: 1              # Shrinks when idle
+      maximum-pool-size: 30        # Increased for ephemera concurrent requests
+      minimum-idle: 3              # Higher minimum for baseline load
       idle-timeout: 300000         # 5 minutes before idle connections are closed
+      leak-detection-threshold: 60000  # Detect connection leaks after 60 seconds
   jpa:
     hibernate:
       naming:

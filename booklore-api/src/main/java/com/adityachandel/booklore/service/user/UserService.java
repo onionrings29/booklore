@@ -16,8 +16,11 @@ import com.adityachandel.booklore.repository.LibraryRepository;
 import com.adityachandel.booklore.repository.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -40,6 +43,7 @@ public class UserService {
                 .collect(Collectors.toList());
     }
 
+    @CacheEvict(value = "userAuthCache", key = "#id")
     public BookLoreUser updateUser(Long id, UserUpdateRequest updateRequest) {
         BookLoreUserEntity user = userRepository.findById(id).orElseThrow(() -> ApiError.USER_NOT_FOUND.createException(id));
         user.setName(updateRequest.getName());
@@ -68,6 +72,7 @@ public class UserService {
         return bookLoreUserTransformer.toDTO(user);
     }
 
+    @CacheEvict(value = "userAuthCache", key = "#id")
     public void deleteUser(Long id) {
         BookLoreUserEntity userToDelete = userRepository.findById(id).orElseThrow(() -> ApiError.USER_NOT_FOUND.createException(id));
         BookLoreUser currentUser = authenticationService.getAuthenticatedUser();
@@ -110,8 +115,10 @@ public class UserService {
         bookLoreUserEntity.setDefaultPassword(false);
         bookLoreUserEntity.setPasswordHash(passwordEncoder.encode(changePasswordRequest.getNewPassword()));
         userRepository.save(bookLoreUserEntity);
+        evictUserCache(bookLoreUser.getId());
     }
 
+    @CacheEvict(value = "userAuthCache", key = "#request.userId")
     public void changeUserPassword(ChangeUserPasswordRequest request) {
         BookLoreUserEntity userEntity = userRepository.findById(request.getUserId()).orElseThrow(() -> ApiError.USER_NOT_FOUND.createException(request.getUserId()));
         if (!meetsMinimumPasswordRequirements(request.getNewPassword())) {
@@ -119,6 +126,11 @@ public class UserService {
         }
         userEntity.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(userEntity);
+    }
+
+    @CacheEvict(value = "userAuthCache", key = "#userId")
+    private void evictUserCache(Long userId) {
+        // Evict cache entry for this user
     }
 
     public void updateUserSetting(Long userId, UpdateUserSettingRequest request) {
@@ -166,5 +178,30 @@ public class UserService {
 
     private boolean meetsMinimumPasswordRequirements(String password) {
         return password != null && password.length() >= 6;
+    }
+
+    /**
+     * Finds a user by ID for authentication purposes.
+     * Uses lightweight query that EXCLUDES eager-loaded libraries and settings.
+     * Uses read-only transaction to minimize connection hold time.
+     * Cached to avoid repeated DB hits during authentication filter chain.
+     *
+     * CRITICAL: This method uses findByIdForAuthentication() which skips EAGER relationships.
+     * Regular findById() loads libraries + settings which is expensive for concurrent auth requests.
+     */
+    @Transactional(readOnly = true)
+    @Cacheable(value = "userAuthCache", key = "#userId", unless = "#result == null")
+    public BookLoreUserEntity findUserForAuthentication(Long userId) {
+        return userRepository.findByIdForAuthentication(userId).orElse(null);
+    }
+
+    /**
+     * Finds a user by username for OIDC authentication.
+     * Uses lightweight query that EXCLUDES eager-loaded libraries and settings.
+     * Uses read-only transaction to minimize connection hold time.
+     */
+    @Transactional(readOnly = true)
+    public BookLoreUserEntity findUserByUsernameForAuthentication(String username) {
+        return userRepository.findByUsernameForAuthentication(username).orElse(null);
     }
 }
