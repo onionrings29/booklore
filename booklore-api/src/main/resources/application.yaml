@@ -61,6 +61,7 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    out-of-order: true  # Allow V64 and V65 to be applied after V66
 
 springdoc:
   swagger-ui:
