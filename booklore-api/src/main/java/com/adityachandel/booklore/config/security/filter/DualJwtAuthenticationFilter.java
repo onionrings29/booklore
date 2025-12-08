@@ -20,6 +20,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -42,6 +43,7 @@ public class DualJwtAuthenticationFilter extends OncePerRequestFilter {
     private final UserRepository userRepository;
     private final AppSettingService appSettingService;
     private final UserProvisioningService userProvisioningService;
+    @Lazy
     private final UserService userService;
     private static final ConcurrentMap<String, Object> userLocks = new ConcurrentHashMap<>();
     private final DynamicOidcJwtProcessor dynamicOidcJwtProcessor;
